@@ -1,9 +1,13 @@
-from pyrogram import Client, filters
+from pyrogram import filters
 import requests
 import os
 from bot import Bot
-from config import OWNER_ID
+from config import OWNER_ID, ACCESS_TOKEN
 
+# Start command to initialize the bot
+@Bot.on_message(filters.user(OWNER_ID) & filters.command("start"))
+async def start(client, message):
+    await message.reply("Welcome! Send me a video (MKV format) to upload to Dailymotion.")
 
 # Handle receiving video or document
 @Bot.on_message(filters.user(OWNER_ID) & filters.document & filters.video)
@@ -27,7 +31,7 @@ async def handle_video(client, message):
         }
 
         response = requests.post(upload_url, headers=headers, files=files)
-        
+
         # Check if upload is successful
         if response.status_code == 200:
             video_id = response.json()['id']
@@ -63,8 +67,6 @@ async def handle_video(client, message):
 
                 # Clean up the downloaded file
                 os.remove(video_file)
-                # Stop listening for tags after the operation is complete
-                app.remove_handler(handle_tags)
 
         else:
             await message.reply("Error during video upload. Please try again.")
@@ -73,4 +75,3 @@ async def handle_video(client, message):
 
     else:
         await message.reply("Please send a video (MKV format) to upload.")
-
