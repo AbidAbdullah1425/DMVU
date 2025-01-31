@@ -15,15 +15,13 @@ def refresh_access_token():
     }
 
     response = requests.post(url, data=data)
-
     if response.status_code == 200:
         new_access_token = response.json().get('access_token')
         if new_access_token:
             os.environ["ACCESS_TOKEN"] = new_access_token
             return new_access_token
-    else:
-        print(f"Failed to refresh token: {response.text}")  # Log the error
-        return None
+    print(f"Failed to refresh token: {response.text}")
+    return None
 
 
 # Function to check if the access token is expired
@@ -32,16 +30,16 @@ def is_access_token_expired():
     headers = {"Authorization": f"Bearer {os.getenv('ACCESS_TOKEN', ACCESS_TOKEN)}"}
     response = requests.get(url, headers=headers)
 
-    if response.status_code == 401:  # 401 means token expired
+    if response.status_code == 401:
         print("Access token expired.")
         return True
     elif response.status_code != 200:
-        print(f"Error checking token: {response.text}")  # Log unexpected errors
+        print(f"Error checking token: {response.text}")
         return True
     return False
 
 
-# Get a valid access token (refresh if needed)
+# Get a valid access token
 def get_access_token():
     if is_access_token_expired():
         new_token = refresh_access_token()
@@ -52,7 +50,7 @@ def get_access_token():
     return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
 
 
-# Start command to check if the bot is responsive
+# Start command
 @Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_command(client, message):
     await message.reply("✅ Bot is working! Send an MKV video to upload.")
@@ -90,7 +88,14 @@ async def handle_video(client, message):
             upload_video_response = requests.post(upload_link, files=files)
 
         if upload_video_response.status_code == 200:
-            video_id = upload_video_response.json().get("id")
+            video_data = upload_video_response.json()
+            video_id = video_data.get("id")
+
+            if not video_id:  # If ID is missing, show error
+                await message.reply(f"❌ Video upload failed.\nResponse: {video_data}")
+                os.remove(video_file)
+                return
+
             await message.reply(f"✅ Video uploaded! ID: {video_id}\nNow, send tags separated by commas.")
 
             # Step 3: Wait for user to send tags
