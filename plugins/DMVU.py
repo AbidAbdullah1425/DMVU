@@ -1,10 +1,11 @@
-import requests
 import os
 import gc
+import requests
 from bot import Bot
 from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN
 from pyrogram import filters
 
+# Function to refresh the access token
 def refresh_access_token():
     url = "https://api.dailymotion.com/oauth/token"
     data = {
@@ -24,6 +25,19 @@ def refresh_access_token():
 def get_access_token():
     return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN) or refresh_access_token()
 
+# Function to download video directly to disk in chunks
+def download_video(file_path, url):
+    # Stream the download to avoid memory overload
+    with requests.get(url, stream=True) as r:
+        if r.status_code == 200:
+            with open(file_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=1024*1024):  # 1MB chunks
+                    if chunk:
+                        f.write(chunk)
+            return file_path
+        return None
+
+# Function to upload video in chunks
 def upload_video_direct(file_path, upload_url, headers):
     with open(file_path, "rb") as f:
         files = {"file": f}
@@ -39,18 +53,23 @@ async def start_command(client, message):
 @Bot.on_message(filters.user(OWNER_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
     if message.video or (message.document and message.document.file_name.endswith('.mkv')):
-        temp_video = await message.download()
+        temp_video = await message.download()  # Download the file directly to disk
+
+        # Extract video metadata (title and description)
         title = os.path.basename(temp_video).split('.')[0]
         description = f"Battle Through The Heavens episode {title}." if "EP" in title else "Battle Through The Heavens episode."
 
         await message.reply("🔄 Uploading your video to Dailymotion...")
 
+        # Authentication step
         access_token = get_access_token()
         if not access_token:
             await message.reply("❌ Failed to authenticate with Dailymotion. Check API credentials.")
             return
 
         headers = {"Authorization": f"Bearer {access_token}"}
+
+        # Get the upload URL
         upload_url_response = requests.get("https://api.dailymotion.com/file/upload", headers=headers)
         if upload_url_response.status_code != 200:
             await message.reply(f"❌ Failed to get upload URL.\nError: {upload_url_response.text}")
@@ -58,15 +77,18 @@ async def handle_video(client, message):
 
         upload_link = upload_url_response.json()["upload_url"]
 
+        # Upload the video file
         uploaded_url, error = upload_video_direct(temp_video, upload_link, headers)
 
+        # Clean up by deleting the temporary video file
         os.remove(temp_video)
-        gc.collect()
+        gc.collect()  # Force garbage collection to free memory
 
         if error:
             await message.reply(f"❌ Error uploading video.\nError: {error}")
             return
 
+        # Create video metadata and upload to Dailymotion
         video_metadata = {
             "title": title,
             "description": description,
@@ -76,6 +98,7 @@ async def handle_video(client, message):
             "channel": "tv"
         }
 
+        # Create the video on Dailymotion
         create_response = requests.post("https://api.dailymotion.com/me/videos", headers=headers, data=video_metadata)
         if create_response.status_code == 200:
             video_id = create_response.json().get("id")
@@ -85,3 +108,4 @@ async def handle_video(client, message):
             await message.reply(f"✅ Video uploaded successfully!\nWatch it here: {video_link}")
         else:
             await message.reply(f"❌ Failed to create video entry.\nError: {create_response.text}")
+
