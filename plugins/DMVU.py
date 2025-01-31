@@ -1,6 +1,7 @@
 from pyrogram import Client, filters
 import requests
 import os
+from bot import Bot
 
 
 # Handle receiving video or document
