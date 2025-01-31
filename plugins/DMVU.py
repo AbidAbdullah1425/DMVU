@@ -93,18 +93,21 @@ async def handle_video(client, message):
                 return
 
             # Step 3: Create video entry on Dailymotion
-            create_video_url = "https://api.dailymotion.com/me/videos"
-            video_metadata = {
-                "title": title,
-                "description": title,
-                "url": video_url,
-                "published": "true"  # Automatically publish
-            }
-            create_response = requests.post(create_video_url, headers=headers, data=video_metadata)
+create_video_url = "https://api.dailymotion.com/me/videos"
+video_metadata = {
+    "title": title,
+    "description": title,
+    "url": video_url,
+    "published": "true",  # Automatically publish
+    "is_created_for_kids": "false"  # Required to avoid error
+}
 
-            if create_response.status_code == 200:
-                video_id = create_response.json().get("id")
-                await message.reply(f"✅ Video uploaded! ID: {video_id}\nNow, send tags separated by commas.")
+create_response = requests.post(create_video_url, headers=headers, data=video_metadata)
+
+if create_response.status_code == 200:
+    video_id = create_response.json().get("id")
+    await message.reply(f"✅ Video uploaded! ID: {video_id}\nNow, send tags separated by commas.")
+
 
                 # Step 4: Wait for user to send tags
                 @Bot.on_message(filters.user(OWNER_ID) & filters.text)
