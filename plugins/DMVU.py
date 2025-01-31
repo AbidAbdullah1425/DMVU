@@ -1,7 +1,7 @@
 import requests
 import os
 from bot import Bot
-from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN, LOGGER, LOG_FILE_NAME
+from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN
 from pyrogram import filters
 
 # Function to refresh the access token
@@ -15,7 +15,7 @@ def refresh_access_token():
     }
     response = requests.post(url, data=data)
     if response.status_code == 200:
-        new_access_token = response.json().get('access_token')
+        new_access_token = response.json().get("access_token")
         if new_access_token:
             os.environ["ACCESS_TOKEN"] = new_access_token
             return new_access_token
@@ -49,18 +49,15 @@ def get_access_token():
 def extract_tags(filename):
     base_name = os.path.basename(filename)
     name_without_ext = os.path.splitext(base_name)[0]
-
-    # Extract season and episode
-    parts = name_without_ext.replace('-', '').replace('@', '').split()
-    tags = parts + ['btth', 'Battle Through The Heavens', 'DonghuaWillow']
-
+    parts = name_without_ext.replace("-", "").replace("@", "").split()
+    tags = parts + ["btth", "Battle Through The Heavens", "DonghuaWillow"]
     return tags
 
 # Function to download file in chunks
 def download_file_in_chunks(url, file_path):
     with requests.get(url, stream=True) as r:
         r.raise_for_status()
-        with open(file_path, 'wb') as f:
+        with open(file_path, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):  # 8 KB chunks
                 if chunk:
                     f.write(chunk)
@@ -73,23 +70,19 @@ async def start_command(client, message):
 # Handle MKV video uploads
 @Bot.on_message(filters.user(OWNER_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
-    # Check if the message is a video or a document with an MKV file
-    if message.video:
-        video_file = await message.download()
+    # Check if the message is a video or an MKV document
+    if message.video or (message.document and message.document.file_name.endswith(".mkv")):
+        temp_video_path = "temp_video.mkv"  # Temporary storage for the video
 
-        # Instead of loading the full video into memory, save it in chunks to disk
-        temp_video_path = "temp_video.mkv"  # Temp path for video download
-        download_file_in_chunks(message.video.file_id, temp_video_path)
+        # Download video
+        await message.reply("📥 Downloading your video...")
+        video_file = await client.download_media(message, file_name=temp_video_path)
 
-        file_name = os.path.basename(temp_video_path)
-        title = file_name.split('.')[0]
+        file_name = os.path.basename(video_file)
+        title = file_name.split(".")[0]
 
-        # Generate a dynamic description
-        if "EP" in title:
-            episode_number = title.split("EP")[-1]
-            description = f"Episode {episode_number} of Battle Through The Heavens. Watch now!"
-        else:
-            description = "Battle Through The Heavens episode."
+        # Generate description
+        description = f"Battle Through The Heavens episode." if "EP" not in title else f"Episode {title.split('EP')[-1]} of Battle Through The Heavens. Watch now!"
 
         await message.reply("🔄 Uploading your video to Dailymotion...")
 
@@ -133,7 +126,7 @@ async def handle_video(client, message):
                 "url": video_url,
                 "published": "true",
                 "is_created_for_kids": "false",
-                "channel": "tv",  # Correct usage of media.category as per the API documentation
+                "channel": "tv",
                 "tags": ",".join(tags)
             }
 
@@ -143,13 +136,11 @@ async def handle_video(client, message):
                 video_id = create_response.json().get("id")
                 video_embedded_link = f"https://www.dailymotion.com/embed/video/{video_id}"
 
-                # Send embedded video link in code format to your private messages
                 await client.send_message(
                     OWNER_ID, 
                     f"✅ Video uploaded successfully! 🎉\n\nHere is your embedded video link:\n`{video_embedded_link}`"
                 )
 
-                # Inform the user
                 await message.reply(f"✅ Video uploaded successfully! 🎉\nWatch it here: https://www.dailymotion.com/video/{video_id}")
             else:
                 await message.reply(f"❌ Failed to create video entry.\nError: {create_response.text}")
@@ -164,12 +155,8 @@ async def handle_video(client, message):
 @Bot.on_message(filters.user(OWNER_ID) & filters.photo)
 async def handle_thumbnail(client, message):
     thumbnail_file = await message.download()
+    video_id = "video_id_from_dailymotion"  # Replace with actual video ID
 
-    # Get the video file associated with the uploaded video
-    video_file = "path_to_video_file.mkv"  # You'll need to associate this with the video message somehow
-    video_id = "video_id_from_dailymotion"  # Get this ID after video creation
-
-    # Dailymotion API requires thumbnail to be a square image of 1280x720 resolution.
     thumbnail_url = f"https://api.dailymotion.com/video/{video_id}/thumbnail"
     with open(thumbnail_file, "rb") as thumb:
         files = {"thumbnail": thumb}
@@ -179,4 +166,5 @@ async def handle_thumbnail(client, message):
         await message.reply("✅ Thumbnail set successfully!")
     else:
         await message.reply(f"❌ Failed to set thumbnail.\nError: {response.text}")
+
     os.remove(thumbnail_file)
