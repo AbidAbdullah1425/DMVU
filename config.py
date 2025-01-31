@@ -8,7 +8,7 @@ API_ID = int(os.environ.get("API_ID", "26254064"))
 API_HASH = os.environ.get("API_HASH", "72541d6610ae7730e6135af9423b319c")
 OWNER_ID = int(os.environ.get("OWNER_ID", "5296584067"))
 TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", '0')
-TG_WORKERS = os.environ.get("TG_WORKERS", '1')
+TG_WORKERS = int(os.environ.get("TG_WORKERS", '1'))
 
 # Dailymotion API credentials from environment variables
 CLIENT_ID = os.environ.get("CLIENT_ID", '8fc35d2179736e12a797')
