@@ -1,6 +1,5 @@
 import requests
 import os
-import time
 from bot import Bot
 from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN
 from pyrogram import filters
@@ -35,41 +34,21 @@ def get_access_token():
         return refresh_access_token() or None
     return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
 
-# Upload the video and track progress
+# Upload the video directly
 def upload_file(upload_url, file_path, client, message):
-    file_size = os.path.getsize(file_path)
-    uploaded_bytes = 0
-    chunk_size = 1024 * 1024  # 1 MB chunks
-    progress_interval = 0.1  # 10% progress interval
-
     with open(file_path, "rb") as file:
-        # Uploading the file
+        # Uploading the file directly
         response = requests.post(upload_url, files={"file": file})
         if response.status_code != 200:
             return None, f"❌ Upload failed.\nError: {response.text}"
-
-    # Simulate progress in percentage
-    progress = 0
-    while uploaded_bytes < file_size:
-        uploaded_bytes += chunk_size
-        progress = min((uploaded_bytes / file_size) * 100, 100)
-
-        # Simulating a progress update
-        if progress % progress_interval == 0:
-            # Send progress as a log or message (optional logging)
-            print(f"Upload Progress: {progress:.2f}%")
-
-        # Avoid going over 100%
-        if uploaded_bytes >= file_size:
-            uploaded_bytes = file_size
 
     return upload_url, "✅ Upload complete!"
 
 @Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_command(client, message):
-    await message.reply("✅ Bot is working! Send an MKV video to upload.")
+    await message.reply("✅ Bot is working! Send a video to upload.")
 
-# Handle MKV video uploads
+# Handle video uploads
 @Bot.on_message(filters.user(OWNER_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
     if message.video or (message.document and message.document.file_name.endswith('.mkv')):
@@ -96,7 +75,7 @@ async def handle_video(client, message):
 
         upload_link = upload_response.json()["upload_url"]
 
-        # Step 2: Upload the file with progress tracking
+        # Step 2: Upload the file directly
         uploaded_url, error_message = upload_file(upload_link, video_file, client, message)
         if error_message:
             await message.reply(error_message)
@@ -151,4 +130,5 @@ async def handle_video(client, message):
         os.remove(video_file)
 
     else:
-        await message.reply("⚠️ Please send an MKV video file.")
+        await message.reply("⚠️ Please send a video file.")
+
