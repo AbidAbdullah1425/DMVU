@@ -1,6 +1,7 @@
 import requests
 import os
-from bot import Bot  # Assuming 'Bot' is your Pyrogram Client initialized in bot.py
+from pyrogram import filters
+from bot import Bot
 from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN
 
 # Add a /start command to check if the bot is working
