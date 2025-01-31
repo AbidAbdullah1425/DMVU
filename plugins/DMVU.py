@@ -13,7 +13,6 @@ def refresh_access_token():
         "refresh_token": REFRESH_TOKEN,
         "grant_type": "refresh_token"
     }
-
     response = requests.post(url, data=data)
     if response.status_code == 200:
         new_access_token = response.json().get('access_token')
@@ -28,7 +27,6 @@ def is_access_token_expired():
     url = "https://api.dailymotion.com/me"
     headers = {"Authorization": f"Bearer {os.getenv('ACCESS_TOKEN', ACCESS_TOKEN)}"}
     response = requests.get(url, headers=headers)
-
     if response.status_code == 401:
         print("Access token expired.")
         return True
@@ -47,6 +45,14 @@ def get_access_token():
         return new_token
     return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
 
+# Function to extract tags from filename
+def extract_tags(filename):
+    base_name = os.path.basename(filename)
+    name_without_ext = os.path.splitext(base_name)[0]
+    parts = name_without_ext.replace('-', '').replace('@', '').split()
+    tags = parts + ['btth']  # Adding 'btth' as a default tag
+    return tags
+
 # Start command
 @Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_command(client, message):
@@ -59,6 +65,7 @@ async def handle_video(client, message):
         video_file = await message.download()
         file_name = os.path.basename(video_file)
         title = file_name.split('.')[0]
+        description = f"Episode {title.split('EP')[-1]} of Battle Through The Heavens."
 
         await message.reply("🔄 Uploading your video to Dailymotion...")
 
@@ -85,7 +92,7 @@ async def handle_video(client, message):
 
         if upload_video_response.status_code == 200:
             video_data = upload_video_response.json()
-            video_url = video_data.get("url")  # Use the upload URL instead of video_id
+            video_url = video_data.get("url")
 
             if not video_url:
                 await message.reply(f"❌ Video upload failed.\nResponse: {video_data}")
@@ -94,49 +101,27 @@ async def handle_video(client, message):
 
             # Step 3: Create video entry on Dailymotion
             create_video_url = "https://api.dailymotion.com/me/videos"
+            tags = extract_tags(file_name)
             video_metadata = {
                 "title": title,
-                "description": title,
+                "description": description,
                 "url": video_url,
-                "published": "true",  # Automatically publish
-                "is_created_for_kids": "false"  # Required to avoid error
+                "published": "true",
+                "is_created_for_kids": "false",
+                "channel": "animation",  # Set the appropriate channel ID
+                "tags": ",".join(tags)
             }
 
             create_response = requests.post(create_video_url, headers=headers, data=video_metadata)
 
             if create_response.status_code == 200:
                 video_id = create_response.json().get("id")
-                await message.reply(f"✅ Video uploaded! ID: {video_id}\nNow, send tags separated by commas.")
-
-                # Step 4: Wait for user to send tags
-                @Bot.on_message(filters.user(OWNER_ID) & filters.text)
-                async def handle_tags(client, tag_message):
-                    tags = tag_message.text.split(",")
-
-                    # Update video metadata
-                    metadata_url = f"https://api.dailymotion.com/video/{video_id}"
-                    metadata_params = {
-                        "title": title,
-                        "description": title,
-                        "tags": ",".join(tags)
-                    }
-                    metadata_response = requests.post(metadata_url, headers=headers, data=metadata_params)
-
-                    if metadata_response.status_code == 200:
-                        await tag_message.reply(f"🎉 Video is ready: https://www.dailymotion.com/video/{video_id}")
-                    else:
-                        await tag_message.reply(f"❌ Failed to update video metadata.\nError: {metadata_response.text}")
-
-                    os.remove(video_file)  # Cleanup
-                    Bot.remove_handler(handle_tags)  # Stop listening for tags after processing
-
+                await message.reply(f"✅ Video uploaded successfully! 🎉\nWatch it here: https://www.dailymotion.com/video/{video_id}")
             else:
                 await message.reply(f"❌ Failed to create video entry.\nError: {create_response.text}")
                 os.remove(video_file)
-
         else:
             await message.reply(f"❌ Error uploading the video.\nError: {upload_video_response.text}")
             os.remove(video_file)
-
     else:
         await message.reply("⚠️ Please send an MKV video file.")
