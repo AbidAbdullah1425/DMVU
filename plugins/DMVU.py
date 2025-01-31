@@ -20,26 +20,16 @@ def refresh_access_token():
         if new_access_token:
             os.environ["ACCESS_TOKEN"] = new_access_token
             return new_access_token
-    print(f"Failed to refresh token: {response.text}")
     return None
-
-# Check if the access token is expired
-def is_access_token_expired():
-    url = "https://api.dailymotion.com/me"
-    headers = {"Authorization": f"Bearer {os.getenv('ACCESS_TOKEN', ACCESS_TOKEN)}"}
-    response = requests.get(url, headers=headers)
-    return response.status_code == 401
 
 # Get a valid access token
 def get_access_token():
-    if is_access_token_expired():
-        return refresh_access_token() or None
-    return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
+    return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN) or refresh_access_token()
 
-# Upload video in chunks to reduce RAM usage
-def upload_video_in_chunks(file_path, upload_url):
+# Upload file in small chunks (Memory Efficient)
+def upload_video_in_chunks(file_path, upload_url, chunk_size=2 * 1024 * 1024):  # 2MB chunks
     with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(5 * 1024 * 1024), b""):  # 5MB chunks
+        for chunk in iter(lambda: f.read(chunk_size), b""):
             response = requests.post(upload_url, files={"file": chunk})
             if response.status_code != 200:
                 return None, response.text
@@ -52,9 +42,8 @@ async def start_command(client, message):
 @Bot.on_message(filters.user(OWNER_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
     if message.video or (message.document and message.document.file_name.endswith('.mkv')):
-        video_file = await message.download()
-        file_name = os.path.basename(video_file)
-        title = file_name.split('.')[0]
+        temp_video = await message.download()
+        title = os.path.basename(temp_video).split('.')[0]
         description = f"Battle Through The Heavens episode {title}." if "EP" in title else "Battle Through The Heavens episode."
 
         await message.reply("🔄 Uploading your video to Dailymotion...")
@@ -64,7 +53,7 @@ async def handle_video(client, message):
             await message.reply("❌ Failed to authenticate with Dailymotion. Check API credentials.")
             return
 
-        # Step 1: Get an upload URL from Dailymotion
+        # Get upload URL
         headers = {"Authorization": f"Bearer {access_token}"}
         upload_url_response = requests.get("https://api.dailymotion.com/file/upload", headers=headers)
         if upload_url_response.status_code != 200:
@@ -73,16 +62,18 @@ async def handle_video(client, message):
 
         upload_link = upload_url_response.json()["upload_url"]
 
-        # Step 2: Upload the file in chunks (LOW RAM USAGE)
-        uploaded_url, error = upload_video_in_chunks(video_file, upload_link)
-        os.remove(video_file)  # DELETE FILE IMMEDIATELY AFTER UPLOAD
-        gc.collect()  # FREE MEMORY
+        # Upload file in small chunks
+        uploaded_url, error = upload_video_in_chunks(temp_video, upload_link)
+        
+        # Clean up memory
+        os.remove(temp_video)
+        gc.collect()
 
         if error:
             await message.reply(f"❌ Error uploading video.\nError: {error}")
             return
 
-        # Step 3: Create video entry on Dailymotion
+        # Create video entry on Dailymotion
         video_metadata = {
             "title": title,
             "description": description,
