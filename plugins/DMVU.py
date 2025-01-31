@@ -36,6 +36,24 @@ def get_access_token():
         return refresh_access_token() or None
     return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
 
+# Function to extract tags from filename
+def extract_tags(filename):
+    base_name = os.path.basename(filename).rsplit('.', 1)[0]  # Remove file extension
+    parts = base_name.replace('-', ' ').replace('@', ' ').split()  # Split by space
+    tags = set(parts)  # Remove duplicates
+
+    episode_number = None
+    for part in parts:
+        if part.startswith("EP") and part[2:].isdigit():  # Check for EP followed by numbers
+            episode_number = part[2:]
+            tags.update([f"Episode {episode_number}", f"EP{episode_number}"])
+
+    if "S5" in tags or "Season 5" in tags:
+        tags.update(["Season 5", "S5"])
+
+    tags.add("btth")  # Always include "btth"
+    return list(tags), episode_number  # Return extracted tags and episode number
+
 # Upload file with progress tracking
 def upload_file_with_progress(upload_url, file_path, client, message):
     file_size = os.path.getsize(file_path)
@@ -53,7 +71,7 @@ def upload_file_with_progress(upload_url, file_path, client, message):
             percent_done = (uploaded_bytes / file_size) * 100
             elapsed_time = time.time() - start_time
             speed = (uploaded_bytes / (1024 * 1024)) / elapsed_time  # MB/s
-            
+
             progress_text = f"🚀 Uploading: {uploaded_bytes / (1024 * 1024):.2f}/{file_size / (1024 * 1024):.2f} MB ({percent_done:.2f}%) at {speed:.2f} MB/s"
             client.send_message(OWNER_ID, progress_text)
 
@@ -70,8 +88,14 @@ async def handle_video(client, message):
     if message.video or (message.document and message.document.file_name.endswith('.mkv')):
         video_file = await message.download()
         file_name = os.path.basename(video_file)
-        title = file_name.split('.')[0]
-        description = f"Episode {title.split('EP')[-1]} of Battle Through The Heavens."
+
+        # Extract tags and episode number
+        tags, episode_number = extract_tags(file_name)
+
+        if not episode_number:
+            description = "New episode of Battle Through The Heavens."
+        else:
+            description = f"Episode {episode_number} of Battle Through The Heavens."
 
         await message.reply("🔄 Preparing to upload your video to Dailymotion...")
 
@@ -100,9 +124,8 @@ async def handle_video(client, message):
 
         # Step 3: Create video entry on Dailymotion
         create_video_url = "https://api.dailymotion.com/me/videos"
-        tags = ["btth", "Battle Through The Heavens", "DonghuaWillow"]
         video_metadata = {
-            "title": title,
+            "title": file_name.rsplit('.', 1)[0],  # Keeps filename without extension
             "description": description,
             "url": uploaded_url,
             "published": "true",
@@ -121,7 +144,7 @@ async def handle_video(client, message):
             video_id = response_json.get("id")
 
             status_report.append("✅ Video entry created" if video_id else "❌ Video entry creation failed")
-            status_report.append("✅ Title set successfully" if response_json.get("title") == title else "❌ Title not set correctly")
+            status_report.append("✅ Title set successfully" if response_json.get("title") == video_metadata["title"] else "❌ Title not set correctly")
             status_report.append("✅ Description added" if response_json.get("description") == description else "❌ Description failed")
             status_report.append("✅ Video is public" if response_json.get("published") == "true" else "❌ Video is not public")
             status_report.append("✅ Tags added successfully" if response_json.get("tags") == ",".join(tags) else "❌ Tags were not added correctly")
