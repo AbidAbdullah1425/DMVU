@@ -1,8 +1,7 @@
-import os
-import gc
 import requests
+import os
 from bot import Bot
-from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN
+from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN, LOGGER, LOG_FILE_NAME
 from pyrogram import filters
 
 # Function to refresh the access token
@@ -18,106 +17,150 @@ def refresh_access_token():
     if response.status_code == 200:
         new_access_token = response.json().get('access_token')
         if new_access_token:
-            os.environ["ACCESS_TOKEN"] = new_access_token  # Store new token in environment
+            os.environ["ACCESS_TOKEN"] = new_access_token
             return new_access_token
+    print(f"Failed to refresh token: {response.text}")
     return None
 
+# Function to check if the access token is expired
+def is_access_token_expired():
+    url = "https://api.dailymotion.com/me"
+    headers = {"Authorization": f"Bearer {os.getenv('ACCESS_TOKEN', ACCESS_TOKEN)}"}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 401:
+        print("Access token expired.")
+        return True
+    elif response.status_code != 200:
+        print(f"Error checking token: {response.text}")
+        return True
+    return False
+
+# Get a valid access token
 def get_access_token():
-    # Ensure to refresh the token if it's expired or not available
-    access_token = os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
-    if not access_token:
-        access_token = refresh_access_token()
-    return access_token
+    if is_access_token_expired():
+        new_token = refresh_access_token()
+        if not new_token:
+            print("⚠️ Failed to refresh access token. Check refresh token.")
+            return None
+        return new_token
+    return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
 
-# Function to download video directly to disk in chunks
-def download_video(file_path, url):
-    with requests.get(url, stream=True) as r:
-        if r.status_code == 200:
-            with open(file_path, "wb") as f:
-                # Download in 1MB chunks to avoid memory overload
-                for chunk in r.iter_content(chunk_size=1024*1024):  # 1MB chunks
-                    if chunk:
-                        f.write(chunk)
-            return file_path
-    return None
+# Function to extract tags from filename
+def extract_tags(filename):
+    base_name = os.path.basename(filename)
+    name_without_ext = os.path.splitext(base_name)[0]
 
-# Function to upload video in chunks
-def upload_video_direct(file_path, upload_url, headers):
-    with open(file_path, "rb") as f:
-        files = {"file": f}
-        response = requests.post(upload_url, headers=headers, files=files)
-        if response.status_code == 200:
-            return response.json().get("url")  # Return the video URL
-        return None, response.text  # Return error message if failed
+    # Extract season and episode
+    parts = name_without_ext.replace('-', '').replace('@', '').split()
+    tags = parts + ['btth', 'Battle Through The Heavens', 'DonghuaWillow']
 
+    return tags
+
+# Start command
 @Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_command(client, message):
     await message.reply("✅ Bot is working! Send an MKV video to upload.")
 
+# Handle MKV video uploads
 @Bot.on_message(filters.user(OWNER_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
     if message.video or (message.document and message.document.file_name.endswith('.mkv')):
-        temp_video = await message.download()  # Download the file directly to disk
+        video_file = await message.download()
+        file_name = os.path.basename(video_file)
+        title = file_name.split('.')[0]
 
-        # Extract video metadata (title and description)
-        title = os.path.basename(temp_video).split('.')[0]
-        description = f"Battle Through The Heavens episode {title}." if "EP" in title else "Battle Through The Heavens episode."
+        # Generate a dynamic description
+        if "EP" in title:
+            episode_number = title.split("EP")[-1]
+            description = f"Episode {episode_number} of Battle Through The Heavens. Watch now!"
+        else:
+            description = "Battle Through The Heavens episode."
 
         await message.reply("🔄 Uploading your video to Dailymotion...")
 
-        # Authentication step
         access_token = get_access_token()
         if not access_token:
             await message.reply("❌ Failed to authenticate with Dailymotion. Check API credentials.")
             return
 
+        # Step 1: Get an upload URL from Dailymotion
+        upload_url = "https://api.dailymotion.com/file/upload"
         headers = {"Authorization": f"Bearer {access_token}"}
 
-        # Get the upload URL
-        upload_url_response = requests.get("https://api.dailymotion.com/file/upload", headers=headers)
-        
-        if upload_url_response.status_code == 401:  # Token expired, try refreshing it
-            access_token = refresh_access_token()
-            if not access_token:
-                await message.reply("❌ Failed to refresh access token. Check API credentials.")
+        upload_response = requests.get(upload_url, headers=headers)
+        if upload_response.status_code != 200:
+            await message.reply(f"❌ Failed to get upload URL from Dailymotion.\nError: {upload_response.text}")
+            return
+
+        upload_link = upload_response.json()["upload_url"]
+
+        # Step 2: Upload the file
+        with open(video_file, "rb") as file:
+            files = {"file": file}
+            upload_video_response = requests.post(upload_link, files=files)
+
+        if upload_video_response.status_code == 200:
+            video_data = upload_video_response.json()
+            video_url = video_data.get("url")
+
+            if not video_url:
+                await message.reply(f"❌ Video upload failed.\nResponse: {video_data}")
+                os.remove(video_file)
                 return
-            headers = {"Authorization": f"Bearer {access_token}"}
-            upload_url_response = requests.get("https://api.dailymotion.com/file/upload", headers=headers)
 
-        if upload_url_response.status_code != 200:
-            await message.reply(f"❌ Failed to get upload URL.\nError: {upload_url_response.text}")
-            return
+            # Step 3: Create video entry on Dailymotion
+            create_video_url = "https://api.dailymotion.com/me/videos"
+            tags = extract_tags(file_name)
+            video_metadata = {
+                "title": title,
+                "description": description,
+                "url": video_url,
+                "published": "true",
+                "is_created_for_kids": "false",
+                "channel": "tv",  # Correct usage of media.category as per the API documentation
+                "tags": ",".join(tags)
+            }
 
-        upload_link = upload_url_response.json()["upload_url"]
+            create_response = requests.post(create_video_url, headers=headers, data=video_metadata)
 
-        # Upload the video file
-        uploaded_url, error = upload_video_direct(temp_video, upload_link, headers)
+            if create_response.status_code == 200:
+                video_id = create_response.json().get("id")
+                video_embedded_link = f"https://www.dailymotion.com/embed/video/{video_id}"
 
-        # Clean up by deleting the temporary video file
-        os.remove(temp_video)
-        gc.collect()  # Force garbage collection to free memory after file is uploaded
+                # Send embedded video link in code format to your private messages
+                await client.send_message(
+                    OWNER_ID, 
+                    f"✅ Video uploaded successfully! 🎉\n\nHere is your embedded video link:\n`{video_embedded_link}`"
+                )
 
-        if error:
-            await message.reply(f"❌ Error uploading video.\nError: {error}")
-            return
-
-        # Create video metadata and upload to Dailymotion
-        video_metadata = {
-            "title": title,
-            "description": description,
-            "url": uploaded_url,
-            "published": "true",
-            "is_created_for_kids": "false",
-            "channel": "tv"
-        }
-
-        # Create the video on Dailymotion
-        create_response = requests.post("https://api.dailymotion.com/me/videos", headers=headers, data=video_metadata)
-        if create_response.status_code == 200:
-            video_id = create_response.json().get("id")
-            video_link = f"https://www.dailymotion.com/video/{video_id}"
-
-            await client.send_message(OWNER_ID, f"✅ Video uploaded successfully! 🎉\n\nWatch here: `{video_link}`")
-            await message.reply(f"✅ Video uploaded successfully!\nWatch it here: {video_link}")
+                # Inform the user
+                await message.reply(f"✅ Video uploaded successfully! 🎉\nWatch it here: https://www.dailymotion.com/video/{video_id}")
+            else:
+                await message.reply(f"❌ Failed to create video entry.\nError: {create_response.text}")
+                os.remove(video_file)
         else:
-            await message.reply(f"❌ Failed to create video entry.\nError: {create_response.text}")
+            await message.reply(f"❌ Error uploading the video.\nError: {upload_video_response.text}")
+            os.remove(video_file)
+    else:
+        await message.reply("⚠️ Please send an MKV video file.")
+
+# Function to handle thumbnail setting
+@Bot.on_message(filters.user(OWNER_ID) & filters.photo)
+async def handle_thumbnail(client, message):
+    thumbnail_file = await message.download()
+
+    # Get the video file associated with the uploaded video
+    video_file = "path_to_video_file.mkv"  # You'll need to associate this with the video message somehow
+    video_id = "video_id_from_dailymotion"  # Get this ID after video creation
+
+    # Dailymotion API requires thumbnail to be a square image of 1280x720 resolution.
+    thumbnail_url = f"https://api.dailymotion.com/video/{video_id}/thumbnail"
+    with open(thumbnail_file, "rb") as thumb:
+        files = {"thumbnail": thumb}
+        response = requests.post(thumbnail_url, files=files)
+
+    if response.status_code == 200:
+        await message.reply("✅ Thumbnail set successfully!")
+    else:
+        await message.reply(f"❌ Failed to set thumbnail.\nError: {response.text}")
+    os.remove(thumbnail_file)
