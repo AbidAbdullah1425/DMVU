@@ -73,7 +73,8 @@ async def start_command(client, message):
 # Handle MKV video uploads
 @Bot.on_message(filters.user(OWNER_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
-    if message.video or (message.document and message.document.file_name.endswith('.mkv')):
+    # Check if the message is a video or a document with an MKV file
+    if message.video:
         video_file = await message.download()
 
         # Instead of loading the full video into memory, save it in chunks to disk
