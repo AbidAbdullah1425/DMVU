@@ -19,6 +19,7 @@ def refresh_access_token():
         if new_access_token:
             os.environ["ACCESS_TOKEN"] = new_access_token
             return new_access_token
+    print(f"Failed to refresh token: {response.text}")
     return None
 
 # Function to check if the access token is expired
@@ -26,38 +27,56 @@ def is_access_token_expired():
     url = "https://api.dailymotion.com/me"
     headers = {"Authorization": f"Bearer {os.getenv('ACCESS_TOKEN', ACCESS_TOKEN)}"}
     response = requests.get(url, headers=headers)
-    return response.status_code == 401
+    if response.status_code == 401:
+        print("Access token expired.")
+        return True
+    elif response.status_code != 200:
+        print(f"Error checking token: {response.text}")
+        return True
+    return False
 
 # Get a valid access token
 def get_access_token():
     if is_access_token_expired():
-        return refresh_access_token() or None
+        new_token = refresh_access_token()
+        if not new_token:
+            print("⚠️ Failed to refresh access token. Check refresh token.")
+            return None
+        return new_token
     return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
 
-# Upload the video directly
-def upload_file(upload_url, file_path, client, message):
-    with open(file_path, "rb") as file:
-        # Uploading the file directly
-        response = requests.post(upload_url, files={"file": file})
-        if response.status_code != 200:
-            return None, f"❌ Upload failed.\nError: {response.text}"
+# Function to extract tags from filename
+def extract_tags(filename):
+    base_name = os.path.basename(filename)
+    name_without_ext = os.path.splitext(base_name)[0]
 
-    return upload_url, "✅ Upload complete!"
+    # Extract season and episode
+    parts = name_without_ext.replace('-', '').replace('@', '').split()
+    tags = parts + ['btth', 'Battle Through The Heavens', 'DonghuaWillow']
 
+    return tags
+
+# Start command
 @Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_command(client, message):
-    await message.reply("✅ Bot is working! Send a video to upload.")
+    await message.reply("✅ Bot is working! Send an MKV video to upload.")
 
-# Handle video uploads
+# Handle MKV video uploads
 @Bot.on_message(filters.user(OWNER_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
     if message.video or (message.document and message.document.file_name.endswith('.mkv')):
         video_file = await message.download()
         file_name = os.path.basename(video_file)
         title = file_name.split('.')[0]
-        description = f"Episode {title.split('EP')[-1]} of Battle Through The Heavens."
 
-        await message.reply("🔄 Preparing to upload your video to Dailymotion...")
+        # Generate a dynamic description
+        if "EP" in title:
+            episode_number = title.split("EP")[-1]
+            description = f"Episode {episode_number} of Battle Through The Heavens. Watch now!"
+        else:
+            description = "Battle Through The Heavens episode."
+
+        await message.reply("🔄 Uploading your video to Dailymotion...")
 
         access_token = get_access_token()
         if not access_token:
@@ -75,60 +94,52 @@ async def handle_video(client, message):
 
         upload_link = upload_response.json()["upload_url"]
 
-        # Step 2: Upload the file directly
-        uploaded_url, error_message = upload_file(upload_link, video_file, client, message)
-        if error_message:
-            await message.reply(error_message)
+        # Step 2: Upload the file
+        with open(video_file, "rb") as file:
+            files = {"file": file}
+            upload_video_response = requests.post(upload_link, files=files)
+
+        if upload_video_response.status_code == 200:
+            video_data = upload_video_response.json()
+            video_url = video_data.get("url")
+
+            if not video_url:
+                await message.reply(f"❌ Video upload failed.\nResponse: {video_data}")
+                os.remove(video_file)
+                return
+
+            # Step 3: Create video entry on Dailymotion
+            create_video_url = "https://api.dailymotion.com/me/videos"
+            tags = extract_tags(file_name)
+            video_metadata = {
+                "title": title,
+                "description": description,
+                "url": video_url,
+                "published": "true",
+                "is_created_for_kids": "false",
+                "category": "tv",  # Use "tv" as the correct category
+                "tags": ",".join(tags)
+            }
+
+            create_response = requests.post(create_video_url, headers=headers, data=video_metadata)
+
+            if create_response.status_code == 200:
+                video_id = create_response.json().get("id")
+                video_embedded_link = f"https://www.dailymotion.com/embed/video/{video_id}"
+
+                # Send embedded video link in code format to your private messages
+                await client.send_message(
+                    OWNER_ID, 
+                    f"✅ Video uploaded successfully! 🎉\n\nHere is your embedded video link:\n`{video_embedded_link}`"
+                )
+
+                # Inform the user
+                await message.reply(f"✅ Video uploaded successfully! 🎉\nWatch it here: https://www.dailymotion.com/video/{video_id}")
+            else:
+                await message.reply(f"❌ Failed to create video entry.\nError: {create_response.text}")
+                os.remove(video_file)
+        else:
+            await message.reply(f"❌ Error uploading the video.\nError: {upload_video_response.text}")
             os.remove(video_file)
-            return
-
-        # Step 3: Create video entry on Dailymotion
-        create_video_url = "https://api.dailymotion.com/me/videos"
-        tags = ["btth", "Battle Through The Heavens", "DonghuaWillow"]
-        video_metadata = {
-            "title": title,
-            "description": description,
-            "url": uploaded_url,
-            "published": "true",
-            "is_created_for_kids": "false",
-            "category": "tv",
-            "tags": ",".join(tags)
-        }
-
-        create_response = requests.post(create_video_url, headers=headers, data=video_metadata)
-
-        status_report = []
-        video_id = None
-
-        if create_response.status_code == 200:
-            response_json = create_response.json()
-            video_id = response_json.get("id")
-
-            status_report.append("✅ Video entry created" if video_id else "❌ Video entry creation failed")
-            status_report.append("✅ Title set successfully" if response_json.get("title") == title else "❌ Title not set correctly")
-            status_report.append("✅ Description added" if response_json.get("description") == description else "❌ Description failed")
-            status_report.append("✅ Video is public" if response_json.get("published") == "true" else "❌ Video is not public")
-            status_report.append("✅ Tags added successfully" if response_json.get("tags") == ",".join(tags) else "❌ Tags were not added correctly")
-            status_report.append("✅ Category set to TV" if response_json.get("category") == "tv" else "❌ Category setting failed")
-
-        else:
-            status_report.append(f"❌ Video creation failed: {create_response.text}")
-
-        # Send report to PM
-        report_text = "\n".join(status_report)
-        await client.send_message(OWNER_ID, f"📊 **Upload Status Report:**\n{report_text}")
-
-        # If all tasks succeeded, send the embedded video link
-        if all("✅" in line for line in status_report):
-            video_embedded_link = f"```https://www.dailymotion.com/embed/video/{video_id}```"
-            await client.send_message(OWNER_ID, f"🎬 **Embedded Video Link:**\n{video_embedded_link}")
-
-            await message.reply(f"✅ Video uploaded successfully! 🎉\nWatch it here: https://www.dailymotion.com/video/{video_id}")
-        else:
-            await message.reply("⚠️ Some steps failed. Check PM for details.")
-
-        os.remove(video_file)
-
     else:
-        await message.reply("⚠️ Please send a video file.")
-
+        await message.reply("⚠️ Please send an MKV video file.")
