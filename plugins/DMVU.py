@@ -2,6 +2,7 @@ from pyrogram import Client, filters
 import requests
 import os
 from bot import Bot
+from config import OWNER_ID
 
 
 # Handle receiving video or document
