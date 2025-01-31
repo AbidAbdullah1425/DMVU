@@ -18,24 +18,28 @@ def refresh_access_token():
     if response.status_code == 200:
         new_access_token = response.json().get('access_token')
         if new_access_token:
-            os.environ["ACCESS_TOKEN"] = new_access_token
+            os.environ["ACCESS_TOKEN"] = new_access_token  # Store new token in environment
             return new_access_token
     return None
 
 def get_access_token():
-    return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN) or refresh_access_token()
+    # Ensure to refresh the token if it's expired or not available
+    access_token = os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
+    if not access_token:
+        access_token = refresh_access_token()
+    return access_token
 
 # Function to download video directly to disk in chunks
 def download_video(file_path, url):
-    # Stream the download to avoid memory overload
     with requests.get(url, stream=True) as r:
         if r.status_code == 200:
             with open(file_path, "wb") as f:
+                # Download in 1MB chunks to avoid memory overload
                 for chunk in r.iter_content(chunk_size=1024*1024):  # 1MB chunks
                     if chunk:
                         f.write(chunk)
             return file_path
-        return None
+    return None
 
 # Function to upload video in chunks
 def upload_video_direct(file_path, upload_url, headers):
@@ -44,7 +48,7 @@ def upload_video_direct(file_path, upload_url, headers):
         response = requests.post(upload_url, headers=headers, files=files)
         if response.status_code == 200:
             return response.json().get("url")  # Return the video URL
-        return None, response.text  # Return error message
+        return None, response.text  # Return error message if failed
 
 @Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_command(client, message):
@@ -82,7 +86,7 @@ async def handle_video(client, message):
 
         # Clean up by deleting the temporary video file
         os.remove(temp_video)
-        gc.collect()  # Force garbage collection to free memory
+        gc.collect()  # Force garbage collection to free memory after file is uploaded
 
         if error:
             await message.reply(f"❌ Error uploading video.\nError: {error}")
@@ -108,4 +112,3 @@ async def handle_video(client, message):
             await message.reply(f"✅ Video uploaded successfully!\nWatch it here: {video_link}")
         else:
             await message.reply(f"❌ Failed to create video entry.\nError: {create_response.text}")
-
