@@ -75,6 +75,15 @@ async def handle_video(client, message):
 
         # Get the upload URL
         upload_url_response = requests.get("https://api.dailymotion.com/file/upload", headers=headers)
+        
+        if upload_url_response.status_code == 401:  # Token expired, try refreshing it
+            access_token = refresh_access_token()
+            if not access_token:
+                await message.reply("❌ Failed to refresh access token. Check API credentials.")
+                return
+            headers = {"Authorization": f"Bearer {access_token}"}
+            upload_url_response = requests.get("https://api.dailymotion.com/file/upload", headers=headers)
+
         if upload_url_response.status_code != 200:
             await message.reply(f"❌ Failed to get upload URL.\nError: {upload_url_response.text}")
             return
