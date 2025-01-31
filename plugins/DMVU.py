@@ -5,7 +5,6 @@ from bot import Bot
 from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN
 from pyrogram import filters
 
-# Function to refresh the access token
 def refresh_access_token():
     url = "https://api.dailymotion.com/oauth/token"
     data = {
@@ -22,18 +21,16 @@ def refresh_access_token():
             return new_access_token
     return None
 
-# Get a valid access token
 def get_access_token():
     return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN) or refresh_access_token()
 
-# Upload file in small chunks (Memory Efficient)
-def upload_video_in_chunks(file_path, upload_url, chunk_size=2 * 1024 * 1024):  # 2MB chunks
+def upload_video_direct(file_path, upload_url, headers):
     with open(file_path, "rb") as f:
-        for chunk in iter(lambda: f.read(chunk_size), b""):
-            response = requests.post(upload_url, files={"file": chunk})
-            if response.status_code != 200:
-                return None, response.text
-    return upload_url, None
+        files = {"file": f}
+        response = requests.post(upload_url, headers=headers, files=files)
+        if response.status_code == 200:
+            return response.json().get("url")  # Return the video URL
+        return None, response.text  # Return error message
 
 @Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_command(client, message):
@@ -53,7 +50,6 @@ async def handle_video(client, message):
             await message.reply("❌ Failed to authenticate with Dailymotion. Check API credentials.")
             return
 
-        # Get upload URL
         headers = {"Authorization": f"Bearer {access_token}"}
         upload_url_response = requests.get("https://api.dailymotion.com/file/upload", headers=headers)
         if upload_url_response.status_code != 200:
@@ -62,10 +58,8 @@ async def handle_video(client, message):
 
         upload_link = upload_url_response.json()["upload_url"]
 
-        # Upload file in small chunks
-        uploaded_url, error = upload_video_in_chunks(temp_video, upload_link)
-        
-        # Clean up memory
+        uploaded_url, error = upload_video_direct(temp_video, upload_link, headers)
+
         os.remove(temp_video)
         gc.collect()
 
@@ -73,7 +67,6 @@ async def handle_video(client, message):
             await message.reply(f"❌ Error uploading video.\nError: {error}")
             return
 
-        # Create video entry on Dailymotion
         video_metadata = {
             "title": title,
             "description": description,
