@@ -1,16 +1,10 @@
 import requests
 import os
-from pyrogram import filters
 from bot import Bot
 from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN
+from pyrogram import filters  
 
-# Add a /start command to check if the bot is working
-@Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
-async def start_command(client, message):
-    await message.reply("Bot is working! Send me a video to upload to Dailymotion.")
-
-
-# Helper function to refresh the access token using the refresh token
+# Function to refresh the access token
 def refresh_access_token():
     url = "https://api.dailymotion.com/oauth/token"
     data = {
@@ -23,110 +17,107 @@ def refresh_access_token():
     response = requests.post(url, data=data)
 
     if response.status_code == 200:
-        # Extract the new access token from the response
         new_access_token = response.json().get('access_token')
         if new_access_token:
-            # Update the ACCESS_TOKEN variable or store it securely
-            os.environ["ACCESS_TOKEN"] = new_access_token  # Or use any secure storage method
+            os.environ["ACCESS_TOKEN"] = new_access_token
             return new_access_token
-        else:
-            raise Exception("Failed to retrieve the access token.")
     else:
-        raise Exception(f"Error refreshing access token: {response.status_code}, {response.text}")
+        print(f"Failed to refresh token: {response.text}")  # Log the error
+        return None
 
 
-# Use the refresh_access_token function if the access token has expired
-def get_access_token():
-    access_token = os.getenv("ACCESS_TOKEN")  # Fetch from environment variable or use your preferred method
+# Function to check if the access token is expired
+def is_access_token_expired():
+    url = "https://api.dailymotion.com/me"
+    headers = {"Authorization": f"Bearer {os.getenv('ACCESS_TOKEN', ACCESS_TOKEN)}"}
+    response = requests.get(url, headers=headers)
 
-    # If the access token is invalid or expired, refresh it
-    if not access_token or access_token_is_expired():
-        access_token = refresh_access_token()
-
-    return access_token
-
-
-# Helper function to check if the access token is expired (useful for API error checks)
-def access_token_is_expired():
-    try:
-        # Make a test request to verify the token's validity
-        url = "https://api.dailymotion.com/me"
-        headers = {"Authorization": f"Bearer {os.getenv('ACCESS_TOKEN')}"}
-        response = requests.get(url, headers=headers)
-        
-        if response.status_code == 401:  # 401 means unauthorized, likely due to expired token
-            return True
-        return False
-    except requests.RequestException:
+    if response.status_code == 401:  # 401 means token expired
+        print("Access token expired.")
         return True
+    elif response.status_code != 200:
+        print(f"Error checking token: {response.text}")  # Log unexpected errors
+        return True
+    return False
 
 
-# Now, update your bot's video upload handler
-@Bot.on_message(filters.user(OWNER_ID) & filters.document & filters.video)
+# Get a valid access token (refresh if needed)
+def get_access_token():
+    if is_access_token_expired():
+        new_token = refresh_access_token()
+        if not new_token:
+            print("⚠️ Failed to refresh access token. Check refresh token.")
+            return None
+        return new_token
+    return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
+
+
+# Start command to check if the bot is responsive
+@Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
+async def start_command(client, message):
+    await message.reply("✅ Bot is working! Send an MKV video to upload.")
+
+
+# Handle MKV video uploads
+@Bot.on_message(filters.user(OWNER_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
     if message.video or (message.document and message.document.file_name.endswith('.mkv')):
-        # Handle video file
         video_file = await message.download()
         file_name = os.path.basename(video_file)
-        title = file_name.split('.')[0]  # Title is taken from the file name
+        title = file_name.split('.')[0]
 
-        # Notify the user that the upload has started
-        await message.reply("Uploading your video to Dailymotion...")
+        await message.reply("🔄 Uploading your video to Dailymotion...")
 
-        # Get the valid access token (refresh if expired)
         access_token = get_access_token()
+        if not access_token:
+            await message.reply("❌ Failed to authenticate with Dailymotion. Check API credentials.")
+            return
 
-        # Upload video to Dailymotion
+        # Step 1: Get an upload URL from Dailymotion
         upload_url = "https://api.dailymotion.com/file/upload"
-        headers = {
-            "Authorization": f"Bearer {access_token}"
-        }
-        files = {
-            'file': open(video_file, 'rb')
-        }
+        headers = {"Authorization": f"Bearer {access_token}"}
 
-        response = requests.post(upload_url, headers=headers, files=files)
+        upload_response = requests.get(upload_url, headers=headers)
+        if upload_response.status_code != 200:
+            await message.reply(f"❌ Failed to get upload URL from Dailymotion.\nError: {upload_response.text}")
+            return
 
-        # Check if upload is successful
-        if response.status_code == 200:
-            video_id = response.json()['id']
-            upload_progress_url = f"https://api.dailymotion.com/video/{video_id}"
+        upload_link = upload_response.json()["upload_url"]
 
-            # Wait for video to finish processing and get its metadata
-            video_metadata = requests.get(upload_progress_url, headers=headers).json()
+        # Step 2: Upload the file
+        with open(video_file, "rb") as file:
+            files = {"file": file}
+            upload_video_response = requests.post(upload_link, files=files)
 
-            # Prompt user to add tags
-            await message.reply("The video has been uploaded! Please send tags separated by commas.")
+        if upload_video_response.status_code == 200:
+            video_id = upload_video_response.json().get("id")
+            await message.reply(f"✅ Video uploaded! ID: {video_id}\nNow, send tags separated by commas.")
 
-            # Listen for the tags response
+            # Step 3: Wait for user to send tags
             @Bot.on_message(filters.user(OWNER_ID) & filters.text)
-            async def handle_tags(client, message):
-                tags = message.text.split(",")  # Tags are taken from user input
-                video_title = title
-                video_description = video_title
+            async def handle_tags(client, tag_message):
+                tags = tag_message.text.split(",")
 
-                # Now that the video is uploaded, set the metadata
-                video_metadata_update_url = f"https://api.dailymotion.com/video/{video_id}"
-                video_metadata_params = {
-                    'title': video_title,
-                    'description': video_description,
-                    'tags': ",".join(tags),
+                # Update video metadata
+                metadata_url = f"https://api.dailymotion.com/video/{video_id}"
+                metadata_params = {
+                    "title": title,
+                    "description": title,
+                    "tags": ",".join(tags)
                 }
+                metadata_response = requests.post(metadata_url, headers=headers, data=metadata_params)
 
-                update_response = requests.post(video_metadata_update_url, headers=headers, data=video_metadata_params)
-
-                if update_response.status_code == 200:
-                    await message.reply(f"Video uploaded successfully: {video_metadata['url']}")
+                if metadata_response.status_code == 200:
+                    await tag_message.reply(f"🎉 Video is ready: https://www.dailymotion.com/video/{video_id}")
                 else:
-                    await message.reply("Failed to update video metadata.")
+                    await tag_message.reply(f"❌ Failed to update video metadata.\nError: {metadata_response.text}")
 
-                # Clean up the downloaded file
-                os.remove(video_file)
+                os.remove(video_file)  # Cleanup
+                Bot.remove_handler(handle_tags)  # Stop listening for tags after processing
 
         else:
-            await message.reply("Error during video upload. Please try again.")
-            # Clean up the downloaded file
+            await message.reply(f"❌ Error uploading the video.\nError: {upload_video_response.text}")
             os.remove(video_file)
 
     else:
-        await message.reply("Please send a video (MKV format) to upload.")
+        await message.reply("⚠️ Please send an MKV video file.")
