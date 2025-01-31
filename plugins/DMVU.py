@@ -53,15 +53,6 @@ def extract_tags(filename):
     tags = parts + ["btth", "Battle Through The Heavens", "DonghuaWillow"]
     return tags
 
-# Function to download file in chunks
-def download_file_in_chunks(url, file_path):
-    with requests.get(url, stream=True) as r:
-        r.raise_for_status()
-        with open(file_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):  # 8 KB chunks
-                if chunk:
-                    f.write(chunk)
-
 # Start command
 @Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_command(client, message):
@@ -70,18 +61,19 @@ async def start_command(client, message):
 # Handle MKV video uploads
 @Bot.on_message(filters.user(OWNER_ID) & (filters.video | filters.document))
 async def handle_video(client, message):
-    # Check if the message is a video or an MKV document
     if message.video or (message.document and message.document.file_name.endswith(".mkv")):
-        temp_video_path = "temp_video.mkv"  # Temporary storage for the video
+        temp_video_path = "temp_video.mkv"  
 
         # Download video
         await message.reply("📥 Downloading your video...")
         video_file = await client.download_media(message, file_name=temp_video_path)
 
+        if not os.path.exists(temp_video_path):
+            await message.reply("❌ Failed to download the video. Please try again.")
+            return
+
         file_name = os.path.basename(video_file)
         title = file_name.split(".")[0]
-
-        # Generate description
         description = f"Battle Through The Heavens episode." if "EP" not in title else f"Episode {title.split('EP')[-1]} of Battle Through The Heavens. Watch now!"
 
         await message.reply("🔄 Uploading your video to Dailymotion...")
@@ -89,6 +81,7 @@ async def handle_video(client, message):
         access_token = get_access_token()
         if not access_token:
             await message.reply("❌ Failed to authenticate with Dailymotion. Check API credentials.")
+            os.remove(temp_video_path)
             return
 
         # Step 1: Get an upload URL from Dailymotion
@@ -103,7 +96,7 @@ async def handle_video(client, message):
 
         upload_link = upload_response.json()["upload_url"]
 
-        # Step 2: Upload the file in chunks
+        # Step 2: Upload the file
         with open(temp_video_path, "rb") as file:
             files = {"file": file}
             upload_video_response = requests.post(upload_link, files=files)
@@ -144,7 +137,8 @@ async def handle_video(client, message):
                 await message.reply(f"✅ Video uploaded successfully! 🎉\nWatch it here: https://www.dailymotion.com/video/{video_id}")
             else:
                 await message.reply(f"❌ Failed to create video entry.\nError: {create_response.text}")
-                os.remove(temp_video_path)
+
+            os.remove(temp_video_path)
         else:
             await message.reply(f"❌ Error uploading the video.\nError: {upload_video_response.text}")
             os.remove(temp_video_path)
@@ -156,6 +150,10 @@ async def handle_video(client, message):
 async def handle_thumbnail(client, message):
     thumbnail_file = await message.download()
     video_id = "video_id_from_dailymotion"  # Replace with actual video ID
+
+    if not os.path.exists(thumbnail_file):
+        await message.reply("❌ Failed to download the thumbnail.")
+        return
 
     thumbnail_url = f"https://api.dailymotion.com/video/{video_id}/thumbnail"
     with open(thumbnail_file, "rb") as thumb:
