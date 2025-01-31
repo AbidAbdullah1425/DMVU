@@ -3,16 +3,18 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 
+# Telegram bot API credentials
 API_ID = int(os.environ.get("API_ID", "26254064"))
 API_HASH = os.environ.get("API_HASH", "72541d6610ae7730e6135af9423b319c")
 OWNER_ID = int(os.environ.get("OWNER_ID", "5296584067"))
-BOT_TOKEN = '0'
+TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", '0')
+TG_WORKERS = os.environ.get("TG_WORKERS", '4')
 
-# Dailymotion API credentials
-CLIENT_ID = '8fc35d2179736e12a797'
-CLIENT_SECRET = '3f999282f562df4d2e890ee38a7bc659c5c1edf1'
-ACCESS_TOKEN = "czhIS2EYN3p5Hh1RRypnOhkKXwBNREQ4EA0kTFYhIiEO"  # New Access Token
-REFRESH_TOKEN = "274f209725e532615d9c77c933614b2633243257"  # New Refresh Token
+# Dailymotion API credentials from environment variables
+CLIENT_ID = os.environ.get("CLIENT_ID", '8fc35d2179736e12a797')
+CLIENT_SECRET = os.environ.get("CLIENT_SECRET", '3f999282f562df4d2e890ee38a7bc659c5c1edf1')
+ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "czhIS2EYN3p5Hh1RRypnOhkKXwBNREQ4EA0kTFYhIiEO")  # New Access Token
+REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "274f209725e532615d9c77c933614b2633243257")  # New Refresh Token
 
 
 ADMINS.append(OWNER_ID)
