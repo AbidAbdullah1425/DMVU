@@ -56,6 +56,15 @@ def extract_tags(filename):
 
     return tags
 
+# Function to download file in chunks
+def download_file_in_chunks(url, file_path):
+    with requests.get(url, stream=True) as r:
+        r.raise_for_status()
+        with open(file_path, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=8192):  # 8 KB chunks
+                if chunk:
+                    f.write(chunk)
+
 # Start command
 @Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_command(client, message):
@@ -66,7 +75,12 @@ async def start_command(client, message):
 async def handle_video(client, message):
     if message.video or (message.document and message.document.file_name.endswith('.mkv')):
         video_file = await message.download()
-        file_name = os.path.basename(video_file)
+
+        # Instead of loading the full video into memory, save it in chunks to disk
+        temp_video_path = "temp_video.mkv"  # Temp path for video download
+        download_file_in_chunks(message.video.file_id, temp_video_path)
+        
+        file_name = os.path.basename(temp_video_path)
         title = file_name.split('.')[0]
 
         # Generate a dynamic description
@@ -90,12 +104,13 @@ async def handle_video(client, message):
         upload_response = requests.get(upload_url, headers=headers)
         if upload_response.status_code != 200:
             await message.reply(f"❌ Failed to get upload URL from Dailymotion.\nError: {upload_response.text}")
+            os.remove(temp_video_path)
             return
 
         upload_link = upload_response.json()["upload_url"]
 
-        # Step 2: Upload the file
-        with open(video_file, "rb") as file:
+        # Step 2: Upload the file in chunks
+        with open(temp_video_path, "rb") as file:
             files = {"file": file}
             upload_video_response = requests.post(upload_link, files=files)
 
@@ -105,7 +120,7 @@ async def handle_video(client, message):
 
             if not video_url:
                 await message.reply(f"❌ Video upload failed.\nResponse: {video_data}")
-                os.remove(video_file)
+                os.remove(temp_video_path)
                 return
 
             # Step 3: Create video entry on Dailymotion
@@ -137,10 +152,10 @@ async def handle_video(client, message):
                 await message.reply(f"✅ Video uploaded successfully! 🎉\nWatch it here: https://www.dailymotion.com/video/{video_id}")
             else:
                 await message.reply(f"❌ Failed to create video entry.\nError: {create_response.text}")
-                os.remove(video_file)
+                os.remove(temp_video_path)
         else:
             await message.reply(f"❌ Error uploading the video.\nError: {upload_video_response.text}")
-            os.remove(video_file)
+            os.remove(temp_video_path)
     else:
         await message.reply("⚠️ Please send an MKV video file.")
 
