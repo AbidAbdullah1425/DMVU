@@ -143,3 +143,24 @@ async def handle_video(client, message):
             os.remove(video_file)
     else:
         await message.reply("⚠️ Please send an MKV video file.")
+
+# Function to handle thumbnail setting
+@Bot.on_message(filters.user(OWNER_ID) & filters.photo)
+async def handle_thumbnail(client, message):
+    thumbnail_file = await message.download()
+
+    # Get the video file associated with the uploaded video
+    video_file = "path_to_video_file.mkv"  # You'll need to associate this with the video message somehow
+    video_id = "video_id_from_dailymotion"  # Get this ID after video creation
+
+    # Dailymotion API requires thumbnail to be a square image of 1280x720 resolution.
+    thumbnail_url = f"https://api.dailymotion.com/video/{video_id}/thumbnail"
+    with open(thumbnail_file, "rb") as thumb:
+        files = {"thumbnail": thumb}
+        response = requests.post(thumbnail_url, files=files)
+
+    if response.status_code == 200:
+        await message.reply("✅ Thumbnail set successfully!")
+    else:
+        await message.reply(f"❌ Failed to set thumbnail.\nError: {response.text}")
+    os.remove(thumbnail_file)
