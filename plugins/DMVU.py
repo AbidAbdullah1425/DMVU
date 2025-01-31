@@ -117,7 +117,7 @@ async def handle_video(client, message):
                 "url": video_url,
                 "published": "true",
                 "is_created_for_kids": "false",
-                "category": "tv",  # Use "tv" as the correct category
+                "channel": "tv",  # Use "tv" as the correct category
                 "tags": ",".join(tags)
             }
 
