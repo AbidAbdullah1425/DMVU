@@ -20,7 +20,6 @@ def refresh_access_token():
         if new_access_token:
             os.environ["ACCESS_TOKEN"] = new_access_token
             return new_access_token
-    print(f"Failed to refresh token: {response.text}")
     return None
 
 # Function to check if the access token is expired
@@ -36,48 +35,36 @@ def get_access_token():
         return refresh_access_token() or None
     return os.getenv("ACCESS_TOKEN", ACCESS_TOKEN)
 
-# Function to extract tags from filename
-def extract_tags(filename):
-    base_name = os.path.basename(filename).rsplit('.', 1)[0]  # Remove file extension
-    parts = base_name.replace('-', ' ').replace('@', ' ').split()  # Split by space
-    tags = set(parts)  # Remove duplicates
-
-    episode_number = None
-    for part in parts:
-        if part.startswith("EP") and part[2:].isdigit():  # Check for EP followed by numbers
-            episode_number = part[2:]
-            tags.update([f"Episode {episode_number}", f"EP{episode_number}"])
-
-    if "S5" in tags or "Season 5" in tags:
-        tags.update(["Season 5", "S5"])
-
-    tags.add("btth")  # Always include "btth"
-    return list(tags), episode_number  # Return extracted tags and episode number
-
-# Upload file with progress tracking
-def upload_file_with_progress(upload_url, file_path, client, message):
+# Upload the video and track progress
+def upload_file(upload_url, file_path, client, message):
     file_size = os.path.getsize(file_path)
     uploaded_bytes = 0
-    chunk_size = 5 * 1024 * 1024  # 5 MB per chunk
-    start_time = time.time()
+    chunk_size = 1024 * 1024  # 1 MB chunks
+    progress_interval = 0.1  # 10% progress interval
 
     with open(file_path, "rb") as file:
-        while chunk := file.read(chunk_size):
-            response = requests.post(upload_url, files={"file": chunk})
-            if response.status_code != 200:
-                return None, f"❌ Upload failed at {uploaded_bytes / (1024 * 1024):.2f} MB.\nError: {response.text}"
+        # Uploading the file
+        response = requests.post(upload_url, files={"file": file})
+        if response.status_code != 200:
+            return None, f"❌ Upload failed.\nError: {response.text}"
 
-            uploaded_bytes += len(chunk)
-            percent_done = (uploaded_bytes / file_size) * 100
-            elapsed_time = time.time() - start_time
-            speed = (uploaded_bytes / (1024 * 1024)) / elapsed_time  # MB/s
+    # Simulate progress in percentage
+    progress = 0
+    while uploaded_bytes < file_size:
+        uploaded_bytes += chunk_size
+        progress = min((uploaded_bytes / file_size) * 100, 100)
 
-            progress_text = f"🚀 Uploading: {uploaded_bytes / (1024 * 1024):.2f}/{file_size / (1024 * 1024):.2f} MB ({percent_done:.2f}%) at {speed:.2f} MB/s"
-            client.send_message(OWNER_ID, progress_text)
+        # Simulating a progress update
+        if progress % progress_interval == 0:
+            # Send progress as a log or message (optional logging)
+            print(f"Upload Progress: {progress:.2f}%")
 
-    return upload_url, None
+        # Avoid going over 100%
+        if uploaded_bytes >= file_size:
+            uploaded_bytes = file_size
 
-# Start command
+    return upload_url, "✅ Upload complete!"
+
 @Bot.on_message(filters.command("start") & filters.user(OWNER_ID))
 async def start_command(client, message):
     await message.reply("✅ Bot is working! Send an MKV video to upload.")
@@ -88,14 +75,8 @@ async def handle_video(client, message):
     if message.video or (message.document and message.document.file_name.endswith('.mkv')):
         video_file = await message.download()
         file_name = os.path.basename(video_file)
-
-        # Extract tags and episode number
-        tags, episode_number = extract_tags(file_name)
-
-        if not episode_number:
-            description = "New episode of Battle Through The Heavens."
-        else:
-            description = f"Episode {episode_number} of Battle Through The Heavens."
+        title = file_name.split('.')[0]
+        description = f"Episode {title.split('EP')[-1]} of Battle Through The Heavens."
 
         await message.reply("🔄 Preparing to upload your video to Dailymotion...")
 
@@ -115,8 +96,8 @@ async def handle_video(client, message):
 
         upload_link = upload_response.json()["upload_url"]
 
-        # Step 2: Upload the file in chunks with progress
-        uploaded_url, error_message = upload_file_with_progress(upload_link, video_file, client, message)
+        # Step 2: Upload the file with progress tracking
+        uploaded_url, error_message = upload_file(upload_link, video_file, client, message)
         if error_message:
             await message.reply(error_message)
             os.remove(video_file)
@@ -124,8 +105,9 @@ async def handle_video(client, message):
 
         # Step 3: Create video entry on Dailymotion
         create_video_url = "https://api.dailymotion.com/me/videos"
+        tags = ["btth", "Battle Through The Heavens", "DonghuaWillow"]
         video_metadata = {
-            "title": file_name.rsplit('.', 1)[0],  # Keeps filename without extension
+            "title": title,
             "description": description,
             "url": uploaded_url,
             "published": "true",
@@ -144,7 +126,7 @@ async def handle_video(client, message):
             video_id = response_json.get("id")
 
             status_report.append("✅ Video entry created" if video_id else "❌ Video entry creation failed")
-            status_report.append("✅ Title set successfully" if response_json.get("title") == video_metadata["title"] else "❌ Title not set correctly")
+            status_report.append("✅ Title set successfully" if response_json.get("title") == title else "❌ Title not set correctly")
             status_report.append("✅ Description added" if response_json.get("description") == description else "❌ Description failed")
             status_report.append("✅ Video is public" if response_json.get("published") == "true" else "❌ Video is not public")
             status_report.append("✅ Tags added successfully" if response_json.get("tags") == ",".join(tags) else "❌ Tags were not added correctly")
@@ -159,8 +141,8 @@ async def handle_video(client, message):
 
         # If all tasks succeeded, send the embedded video link
         if all("✅" in line for line in status_report):
-            video_embedded_link = f"https://www.dailymotion.com/embed/video/{video_id}"
-            await client.send_message(OWNER_ID, f"🎬 **Embedded Video Link:**\n`{video_embedded_link}`")
+            video_embedded_link = f"```https://www.dailymotion.com/embed/video/{video_id}```"
+            await client.send_message(OWNER_ID, f"🎬 **Embedded Video Link:**\n{video_embedded_link}")
 
             await message.reply(f"✅ Video uploaded successfully! 🎉\nWatch it here: https://www.dailymotion.com/video/{video_id}")
         else:
