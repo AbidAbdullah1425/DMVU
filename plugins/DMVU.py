@@ -1,7 +1,7 @@
 import requests
 import os
 from bot import Bot
-from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN
+from config import OWNER_ID, CLIENT_ID, CLIENT_SECRET, ACCESS_TOKEN, REFRESH_TOKEN, LOGGER, LOG_FILE_NAME
 from pyrogram import filters
 
 # Function to refresh the access token
