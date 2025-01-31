@@ -1,6 +1,7 @@
 requests
 pyrogram
 aiohttp
+TgCrypto
 
 
 
