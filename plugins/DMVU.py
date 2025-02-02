@@ -5,6 +5,10 @@ import time
 from bot import Bot
 from config import OWNER_ID
 
+@Bot.on_message(filters.user(OWNER_ID) && filters.command("start"))
+async def bot_status(client, message):
+    await message.reply("Bot is doing good.Give me some works!")
+
 
 # Function to simulate m3u8 download and update progress
 def download_m3u8(url, save_path):
