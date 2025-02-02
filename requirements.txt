@@ -2,6 +2,8 @@ requests
 pyrogram
 aiohttp
 TgCrypto
+yt-dlp
+psutil
 
 
 
