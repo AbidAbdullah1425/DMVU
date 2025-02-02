@@ -5,7 +5,7 @@ import time
 from bot import Bot
 from config import OWNER_ID
 
-@Bot.on_message(filters.user(OWNER_ID) && filters.command("start"))
+@Bot.on_message(filters.user(OWNER_ID) & filters.command("start"))
 async def bot_status(client, message):
     await message.reply("Bot is doing good.Give me some works!")
 
@@ -76,7 +76,7 @@ async def upload_file(client, message, file_path, user_id, user_name):
     return uploaded_size  # Return the size of the uploaded file
 
 # Command handler for '/dl' command
-@Bot.on_message(filters.command("dl") && filters.user(OWNER_ID))
+@Bot.on_message(filters.command("dl") & filters.user(OWNER_ID))
 async def handle_dl_command(client, message):
     url = message.text.split(" ")[1]  # Extract the URL from the command
     user_id = message.from_user.id
