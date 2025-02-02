@@ -4,6 +4,7 @@ aiohttp
 TgCrypto
 yt-dlp
 psutil
+ffmpeg-python
 
 
 
