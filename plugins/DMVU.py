@@ -12,6 +12,11 @@ DOWNLOAD_DIR = './downloads/'
 # Ensure the download directory exists
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
+def list_formats(link):
+    ydl_opts = {'listformats': True}
+    with YoutubeDL(ydl_opts) as ydl:
+        ydl.download([link])
+
 def download_video(link, output_path):
     ydl_opts = {
         'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]',
@@ -35,6 +40,10 @@ async def handle_m3u8_link(client, message):
             await loop.run_in_executor(None, download_video, link, output_path)
             await message.reply("Download started. You'll receive the video once it's done.")
         except Exception as e:
-            await message.reply(f"Error downloading video: {e}")
+            if "Requested format is not available" in str(e):
+                await message.reply("Requested format is not available. Listing available formats...")
+                loop.run_in_executor(None, list_formats, link)
+            else:
+                await message.reply(f"Error downloading video: {e}")
     else:
         await message.reply("Please send a valid m3u8 link.")
