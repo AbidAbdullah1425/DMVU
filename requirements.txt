@@ -1,3 +1,4 @@
+aiohttp
 pyrogram
 TgCrypto
 yt-dlp
