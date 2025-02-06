@@ -4,7 +4,7 @@ from pymongo import MongoClient
 from bot import Bot
 
 # MongoDB setup
-MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://CaptainUsoppBot:AtER2FsHMTxXxVV@cluster0.yrer1v2.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://abidabdullahown7:abidabdullah1425@cluster0.7lgug.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 mongo_client = MongoClient(MONGO_URI)
 db = mongo_client["bot_db"]
 settings = db["settings"]
