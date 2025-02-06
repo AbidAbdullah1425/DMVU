@@ -1,10 +1,9 @@
 import time
 import random
 from datetime import datetime, timedelta
-from pyrogram import Client
+from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from bot import Bot
-
 
 # Channel ID
 CHANNEL_ID = "-1002234026927"
@@ -12,18 +11,18 @@ CHANNEL_ID = "-1002234026927"
 # Message Template (Bot Vibes)
 def get_bot_message(count):
     timestamp = datetime.now().strftime("%I:%M %p")  # Bot-style time format
-    bot_messages = bot_messages = [
-    f"🤖 | **System Initialization** | {timestamp}\n⚡ Neural Network Update - Establishing Data Protocols...",
-    f"💻 | **File Synchronization** | {timestamp}\n🧠 Accessing Core Memory - Optimizing Subsystems...",
-    f"⚡ | **Power-Up Sequence** | {timestamp}\n🔧 Executing Self-Check - All Systems Normal...",
-    f"🔄 | **Data Retrieval** | {timestamp}\n🧑‍💻 Querying Global Data Vault - 56% Complete...",
-    f"📡 | **Reboot Sequence** | {timestamp}\n⚙️ Resetting Core Environment - Please Stand By...",
-    f"🛠️ | **Resource Allocation** | {timestamp}\n🔋 Stabilizing Energy Fields - Cluster Optimization in Progress...",
-    f"⚙️ | **Environment Reset** | {timestamp}\n🔒 Securing Data Vault - Cyber Defense Systems Engaged...",
-    f"⚡ | **System Check** | {timestamp}\n💾 Integrating New Data Streams - Uploading Files...",
-    f"🤖 | **Execution Mode** | {timestamp}\n💻 Finalizing Computational Load - 72% Complete...",
-    f"📡 | **Mainframe Loading** | {timestamp}\n🧠 Memory Encrypted - Launching Subsystems in 3...2...1..."
-]
+    bot_messages = [
+        f"🤖 | **System Initialization** | {timestamp}\n⚡ Neural Network Update - Establishing Data Protocols...",
+        f"💻 | **File Synchronization** | {timestamp}\n🧠 Accessing Core Memory - Optimizing Subsystems...",
+        f"⚡ | **Power-Up Sequence** | {timestamp}\n🔧 Executing Self-Check - All Systems Normal...",
+        f"🔄 | **Data Retrieval** | {timestamp}\n🧑‍💻 Querying Global Data Vault - 56% Complete...",
+        f"📡 | **Reboot Sequence** | {timestamp}\n⚙️ Resetting Core Environment - Please Stand By...",
+        f"🛠️ | **Resource Allocation** | {timestamp}\n🔋 Stabilizing Energy Fields - Cluster Optimization in Progress...",
+        f"⚙️ | **Environment Reset** | {timestamp}\n🔒 Securing Data Vault - Cyber Defense Systems Engaged...",
+        f"⚡ | **System Check** | {timestamp}\n💾 Integrating New Data Streams - Uploading Files...",
+        f"🤖 | **Execution Mode** | {timestamp}\n💻 Finalizing Computational Load - 72% Complete...",
+        f"📡 | **Mainframe Loading** | {timestamp}\n🧠 Memory Encrypted - Launching Subsystems in 3...2...1..."
+    ]
 
     return bot_messages[count % len(bot_messages)]  # Rotate messages
 
@@ -68,9 +67,12 @@ async def progress_bar(message_id, progress=0):
         progress += random.randint(5, 15)  # Randomize progress for the effect
         await time.sleep(2)  # Wait before updating again
 
-# Main Script (Using Pyrogram)
-@Bot.on_message()
-async def main():
+# Start Bot Process Command
+@Bot.on_message(filters.command("start_bot"))
+async def start_bot(client, message):
+    await message.reply("⚡ Starting the bot message process...")
+
+    # Generate message times
     message_times = get_random_times()
 
     for i, msg_time in enumerate(message_times):
@@ -91,4 +93,5 @@ async def main():
         # Delete the message after 1 hour
         await delete_message(message.message_id)
 
-    print("✅ All 50 messages sent for today!")
+    await message.reply("✅ All 50 messages sent for today!")
+
