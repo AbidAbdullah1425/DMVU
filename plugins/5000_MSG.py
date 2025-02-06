@@ -1,10 +1,10 @@
 import time
-import requests
 import random
 from datetime import datetime, timedelta
+from pyrogram import Client
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from bot import Bot
 
-# Telegram Bot Token
-BOT_TOKEN = "7708810325:AAFI883rABgcJgh99OVZD4_CoDg1LU4IlBo"
 
 # Channel ID
 CHANNEL_ID = "-1002234026927"
@@ -12,13 +12,19 @@ CHANNEL_ID = "-1002234026927"
 # Message Template (Bot Vibes)
 def get_bot_message(count):
     timestamp = datetime.now().strftime("%I:%M %p")  # Bot-style time format
-    bot_messages = [
-        f"🤖 | **Auto-Update** | {timestamp}\n🔥 Battle Through The Heavens Eng Sub - Stay Tuned!",
-        f"🔄 Fetching latest updates... | {timestamp}\n🔥 New episode details coming soon!",
-        f"⚡ System Alert | {timestamp}\n🔥 Scheduled Update in Progress...",
-        f"🤖 Processing... | {timestamp}\n🔥 Stay tuned for more anime episodes!",
-        f"📡 Auto Broadcast | {timestamp}\n🔥 Don't miss the next release!"
-    ]
+    bot_messages = bot_messages = [
+    f"🤖 | **System Initialization** | {timestamp}\n⚡ Neural Network Update - Establishing Data Protocols...",
+    f"💻 | **File Synchronization** | {timestamp}\n🧠 Accessing Core Memory - Optimizing Subsystems...",
+    f"⚡ | **Power-Up Sequence** | {timestamp}\n🔧 Executing Self-Check - All Systems Normal...",
+    f"🔄 | **Data Retrieval** | {timestamp}\n🧑‍💻 Querying Global Data Vault - 56% Complete...",
+    f"📡 | **Reboot Sequence** | {timestamp}\n⚙️ Resetting Core Environment - Please Stand By...",
+    f"🛠️ | **Resource Allocation** | {timestamp}\n🔋 Stabilizing Energy Fields - Cluster Optimization in Progress...",
+    f"⚙️ | **Environment Reset** | {timestamp}\n🔒 Securing Data Vault - Cyber Defense Systems Engaged...",
+    f"⚡ | **System Check** | {timestamp}\n💾 Integrating New Data Streams - Uploading Files...",
+    f"🤖 | **Execution Mode** | {timestamp}\n💻 Finalizing Computational Load - 72% Complete...",
+    f"📡 | **Mainframe Loading** | {timestamp}\n🧠 Memory Encrypted - Launching Subsystems in 3...2...1..."
+]
+
     return bot_messages[count % len(bot_messages)]  # Rotate messages
 
 # Number of messages per day
@@ -28,32 +34,17 @@ TOTAL_MESSAGES = 50
 START_HOUR = 22
 END_HOUR = 6  
 
-# Send Message Function
-def send_message(text):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    data = {"chat_id": CHANNEL_ID, "text": text, "parse_mode": "Markdown"}
-    response = requests.post(url, data=data)
-    response_data = response.json()
-    
-    if response.status_code == 200:
-        message_id = response_data["result"]["message_id"]
-        print(f"✅ Sent message at {datetime.now().strftime('%I:%M %p')}: {text}")
-        return message_id
-    else:
-        print(f"❌ Error: {response.text}")
-        return None
+# Send Message Function (Pyrogram version)
+async def send_message(text):
+    message = await app.send_message(CHANNEL_ID, text)
+    print(f"✅ Sent message at {datetime.now().strftime('%I:%M %p')}: {text}")
+    return message.message_id
 
 # Delete Message Function
-def delete_message(message_id):
+async def delete_message(message_id):
     time.sleep(3600)  # Wait 1 hour before deleting
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteMessage"
-    data = {"chat_id": CHANNEL_ID, "message_id": message_id}
-    response = requests.post(url, data=data)
-    
-    if response.status_code == 200:
-        print(f"✅ Deleted message ID: {message_id}")
-    else:
-        print(f"❌ Failed to delete message ID: {message_id}")
+    await app.delete_messages(CHANNEL_ID, message_id)
+    print(f"✅ Deleted message ID: {message_id}")
 
 # Generate Random Message Times
 def get_random_times():
@@ -69,21 +60,35 @@ def get_random_times():
     ]
     return sorted(time_slots)  # Ensure ordered times
 
-# Main Script
-message_times = get_random_times()
+# Progress Bar Simulation
+async def progress_bar(message_id, progress=0):
+    while progress <= 100:
+        progress_text = f"⚡ **System Alert** | Cleaning Storage... {progress}% | {datetime.now().strftime('%I:%M %p')}"
+        await app.edit_message_text(CHANNEL_ID, message_id, progress_text)
+        progress += random.randint(5, 15)  # Randomize progress for the effect
+        await time.sleep(2)  # Wait before updating again
 
-for i, msg_time in enumerate(message_times):
-    now = datetime.now()
-    wait_time = (msg_time - now).total_seconds()
-    
-    if wait_time > 0:
-        print(f"⏳ Waiting until {msg_time.strftime('%I:%M %p')} to send message {i+1}/{TOTAL_MESSAGES}")
-        time.sleep(wait_time)  # Wait until the next scheduled message
+# Main Script (Using Pyrogram)
+@Bot.on_message()
+async def main():
+    message_times = get_random_times()
 
-    message_text = get_bot_message(i)  # Get bot-style message
-    message_id = send_message(message_text)
-    
-    if message_id:
-        delete_message(message_id)  # Schedule deletion after 1 hour
+    for i, msg_time in enumerate(message_times):
+        now = datetime.now()
+        wait_time = (msg_time - now).total_seconds()
 
-print("✅ All 50 messages sent for today!")
+        if wait_time > 0:
+            print(f"⏳ Waiting until {msg_time.strftime('%I:%M %p')} to send message {i+1}/{TOTAL_MESSAGES}")
+            time.sleep(wait_time)  # Wait until the next scheduled message
+
+        # Send the message with bot-like action
+        message_text = get_bot_message(i)  # Get bot-style message
+        message = await send_message(message_text)
+
+        # Simulate a cyborg-like environment with progress bar
+        await progress_bar(message.message_id)
+
+        # Delete the message after 1 hour
+        await delete_message(message.message_id)
+
+    print("✅ All 50 messages sent for today!")
