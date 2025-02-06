@@ -35,7 +35,7 @@ def save_sentence(sentence):
 async def start_command(client, message):
     # Check if there's additional text after /start
     command_parts = message.text.split(maxsplit=1)
-    
+
     if len(command_parts) > 1:
         # Save the sentence
         sentence = command_parts[1]
