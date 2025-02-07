@@ -35,7 +35,7 @@ END_HOUR = 6
 
 # Send Message Function (Pyrogram version)
 async def send_message(text):
-    message = await app.send_message(CHANNEL_ID, text)
+    message = await Bot.send_message(CHANNEL_ID, text)
     print(f"✅ Sent message at {datetime.now().strftime('%I:%M %p')}: {text}")
     return message.message_id
 
@@ -63,7 +63,7 @@ def get_random_times():
 async def progress_bar(message_id, progress=0):
     while progress <= 100:
         progress_text = f"⚡ **System Alert** | Cleaning Storage... {progress}% | {datetime.now().strftime('%I:%M %p')}"
-        await app.edit_message_text(CHANNEL_ID, message_id, progress_text)
+        await Bot.edit_message_text(CHANNEL_ID, message_id, progress_text)
         progress += random.randint(5, 15)  # Randomize progress for the effect
         await time.sleep(2)  # Wait before updating again
 
