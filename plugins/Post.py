@@ -51,12 +51,9 @@ async def url_handler(client, message: Message):
         await message.reply("Invalid URL. Please provide a valid link (starting with http:// or https://).")
         return
 
-    # Store button URL
     user_data[user_id]["button_url"] = user_input
-
-    # Show preview message with button
     episode_number = user_data[user_id]["episode"]
-    anime_cover_url = "https://raw.githubusercontent.com/AbidAbdullah1425/DMVU/refs/heads/Alpha/assist/cover.jpg"
+    anime_cover_path = "assist/cover.jpg"  # Use local image instead of GitHub URL
 
     button = InlineKeyboardMarkup(
         [[InlineKeyboardButton("• ᴅᴏᴡɴʟᴏᴀᴅ / ᴡᴀᴛᴄʜ •", url=user_input)],
@@ -74,7 +71,7 @@ async def url_handler(client, message: Message):
     )
 
     await message.reply_photo(
-        photo=anime_cover_url,
+        photo=anime_cover_path,  # Upload from local file
         caption=post_text,
         reply_markup=button
     )
@@ -90,7 +87,7 @@ async def send_to_channels(client, callback_query):
         return
 
     episode_number = user_data[user_id]["episode"]
-    anime_cover_url = "https://raw.githubusercontent.com/AbidAbdullah1425/DMVU/refs/heads/Alpha/assist/cover.jpg"
+    anime_cover_path = "assist/cover.jpg"  # Local image
     button_url = user_data[user_id]["button_url"]
 
     button = InlineKeyboardMarkup(
@@ -111,7 +108,7 @@ async def send_to_channels(client, callback_query):
         try:
             await client.send_photo(
                 chat_id=channel,
-                photo=anime_cover_url,
+                photo=anime_cover_path,  # Use local file instead of a URL
                 caption=post_text,
                 reply_markup=button
             )
