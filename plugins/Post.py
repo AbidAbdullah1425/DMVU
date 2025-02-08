@@ -73,7 +73,8 @@ async def url_handler(client, message: Message):
     await message.reply_photo(
         photo=anime_cover_path,  # Upload from local file
         caption=post_text,
-        reply_markup=button
+        reply_markup=button,
+        parse_mode="markdown"  # Enable markdown for the caption
     )
 
     logger.debug(f"Preview sent to {user_id}, waiting for confirmation")
@@ -110,7 +111,8 @@ async def send_to_channels(client, callback_query):
                 chat_id=channel,
                 photo=anime_cover_path,  # Use local file instead of a URL
                 caption=post_text,
-                reply_markup=button
+                reply_markup=button,
+                parse_mode="markdown"  # Enable markdown for the caption
             )
             logger.info(f"Post sent to {channel}")
         except Exception as e:
