@@ -66,7 +66,7 @@ async def url_handler(client, message: Message):
         # Get anime title, episode, and URL for button
         anime_title = user_data[user_id]["anime_title"]
         episode_number = user_data[user_id]["episode"]
-        anime_cover_url = https://raw.githubusercontent.com/AbidAbdullah1425/DMVU/refs/heads/Alpha/assist/20250208_132017.jpg
+        anime_cover_url = "https://raw.githubusercontent.com/AbidAbdullah1425/DMVU/refs/heads/Alpha/assist/20250208_132017.jpg"
         
         button_url = user_input
         button = InlineKeyboardMarkup(
