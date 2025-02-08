@@ -81,9 +81,9 @@ async def url_handler(client, message: Message):
     f"**⦿   Episode: `{episode_number}`**\n"
     f"**⦿   Quality: 720p**\n"
     f"**⦿   Genres: `Action`, `Adventure`, `Harem`, `Romance`, `Cultivation`**\n\n"
-    f"**◆   Synopsis : In a land where no magic is present. A land where the strong make the rules and weak have to obey....**\n\n"
-    f"**[Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)**"
+    f"**◆   Synopsis : In a land where no magic is present. A land where the strong make the rules and weak have to obey...** [Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n\n"
 )
+
 
 
         # Send the post to each channel
