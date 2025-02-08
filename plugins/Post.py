@@ -1,7 +1,8 @@
-from pyrogram import Client, filters
+from pyrogram import filters
+from pyrogram.enums import ParseMode
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 import logging
-from config import TG_BOT_TOKEN, API_ID, API_HASH, OWNER_ID
+from config import OWNER_ID
 from bot import Bot
 
 logging.basicConfig(level=logging.DEBUG)
@@ -53,7 +54,7 @@ async def url_handler(client, message: Message):
 
     user_data[user_id]["button_url"] = user_input
     episode_number = user_data[user_id]["episode"]
-    anime_cover_path = "assist/cover.jpg"  # Use local image instead of GitHub URL
+    anime_cover_path = "assist/cover.jpg"  # Use local image
 
     button = InlineKeyboardMarkup(
         [[InlineKeyboardButton("• ᴅᴏᴡɴʟᴏᴀᴅ / ᴡᴀᴛᴄʜ •", url=user_input)],
@@ -61,19 +62,20 @@ async def url_handler(client, message: Message):
     )
 
     post_text = (
-        f"**☗ Doupo Cangqiong**\n\n"
-        f"**⦿ Ratings: 9.8**\n"
-        f"**⦿ Status: Airing**\n"
-        f"**⦿ Episode: `{episode_number}`**\n"
-        f"**⦿ Quality: 720p**\n"
-        f"**⦿ Genres: `Action`, `Adventure`, `Harem`, `Romance`, `Cultivation`**\n\n"
-        f"**◆ Synopsis: In a land where no magic is present. A land where the strong make the rules and weak have to obey...** [Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n\n"
+        f"**☗   Battle Through The Heavens**\n\n"
+        f"**⦿   Ratings: 9.8**\n"
+        f"**⦿   Status: Airing**\n"
+        f"**⦿   Episode: `{episode_number}`**\n"
+        f"**⦿   Quality: 720p**\n"
+        f"**⦿   Genres: `Action`, `Adventure`, `Harem`, `Romance`, `Cultivation`**\n\n"
+        f"**◆   Synopsis: In a land where no magic is present. A land where the strong make the rules and weak have to obey...**[Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n\n"
     )
 
     await message.reply_photo(
-        photo=anime_cover_path,  # Upload from local file
+        photo=anime_cover_path,  
         caption=post_text,
-        reply_markup=button
+        reply_markup=button,
+        parse_mode=ParseMode.MARKDOWN
     )
 
     logger.debug(f"Preview sent to {user_id}, waiting for confirmation")
@@ -87,7 +89,7 @@ async def send_to_channels(client, callback_query):
         return
 
     episode_number = user_data[user_id]["episode"]
-    anime_cover_path = "assist/cover.jpg"  # Local image
+    anime_cover_path = "assist/cover.jpg"
     button_url = user_data[user_id]["button_url"]
 
     button = InlineKeyboardMarkup(
@@ -95,22 +97,23 @@ async def send_to_channels(client, callback_query):
     )
 
     post_text = (
-        f"**☗ Doupo Cangqiong**\n\n"
-        f"**⦿ Ratings: 9.8**\n"
-        f"**⦿ Status: Airing**\n"
-        f"**⦿ Episode: `{episode_number}`**\n"
-        f"**⦿ Quality: 720p**\n"
-        f"**⦿ Genres: `Action`, `Adventure`, `Harem`, `Romance`, `Cultivation`**\n\n"
-        f"**◆ Synopsis: In a land where no magic is present. A land where the strong make the rules and weak have to obey...** [Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n\n"
+        f"**☗   Battle Through The Heavens**\n\n"
+        f"**⦿   Ratings: 9.8**\n"
+        f"**⦿   Status: Airing**\n"
+        f"**⦿   Episode: `{episode_number}`**\n"
+        f"**⦿   Quality: 720p**\n"
+        f"**⦿   Genres: `Action`, `Adventure`, `Harem`, `Romance`, `Cultivation`**\n\n"
+        f"**◆   Synopsis: In a land where no magic is present. A land where the strong make the rules and weak have to obey...**[Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n\n"
     )
 
     for channel in CHANNELS:
         try:
             await client.send_photo(
                 chat_id=channel,
-                photo=anime_cover_path,  # Use local file instead of a URL
+                photo=anime_cover_path,
                 caption=post_text,
-                reply_markup=button
+                reply_markup=button,
+                parse_mode=ParseMode.MARKDOWN
             )
             logger.info(f"Post sent to {channel}")
         except Exception as e:
