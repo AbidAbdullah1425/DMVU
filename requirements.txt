@@ -1,7 +1,7 @@
 python-dotenv
 requests
 aiohttp
-pyrogram
+git+https://github.com/abidabdullah-cloud/pyrogram.git@dev#egg=pyrogram
 TgCrypto
 
 
