@@ -4,7 +4,7 @@ import logging
 from config import TG_BOT_TOKEN, API_ID, API_HASH, OWNER_ID
 from bot import Bot
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 CHANNELS = ["@HeavenlySubs"]
@@ -13,95 +13,111 @@ CHANNELS = ["@HeavenlySubs"]
 user_data = {}
 
 async def reset_user_data(user_id):
-    """
-    Function to reset user data after the process is complete
-    """
     if user_id in user_data:
         user_data.pop(user_id)
+    logger.debug(f"User data reset for {user_id}")
 
 @Bot.on_message(filters.command("post") & filters.private & filters.user(OWNER_ID))
 async def post_handler(client, message: Message):
     user_id = message.from_user.id
-    user_input = message.text.strip()
+    command_parts = message.text.split()
 
-    # Check if user is in the process
-    if user_id not in user_data or "in_progress" not in user_data[user_id]:
-        return  # Ignore irrelevant inputs
+    if len(command_parts) < 2 or not command_parts[1].isdigit():
+        await message.reply("Usage: `/post <episode_number>`\nExample: `/post 12`")
+        return
 
-    try:
-        # Check if the user provided episode number
-        episode_number = user_input.split()[1] if len(user_input.split()) > 1 else None
-        if not episode_number or not episode_number.isdigit():
-            return  # No reply, just exit
+    episode_number = int(command_parts[1])
+    if not (1 <= episode_number <= 500):
+        await message.reply("Episode number must be between 1 and 500.")
+        return
 
-        episode_number = int(episode_number)
-        if episode_number < 1 or episode_number > 500:
-            return  # No reply, just exit
+    user_data[user_id] = {
+        "episode": episode_number,
+        "in_progress": True
+    }
 
-        # Get anime title and cover image
-        anime_title = user_data[user_id]["anime_title"]
-        anime_cover_url = user_data[user_id]["anime_cover_url"]
-        
-        # Ask for the button URL
-        await message.reply("Please send the URL for the button (starting with http:// or https://).")
-
-        user_data[user_id]["episode"] = episode_number
-        user_data[user_id]["in_progress"] = False  # Mark the process as completed
-        
-        # After URL is provided by the user, the bot will send the final post
-    except Exception as e:
-        logger.exception("An error occurred while processing the /post command.")
+    await message.reply("Send the button URL (starting with http:// or https://).")
+    logger.debug(f"Episode number {episode_number} saved for {user_id}")
 
 @Bot.on_message(filters.text & filters.private & filters.user(OWNER_ID))
 async def url_handler(client, message: Message):
     user_id = message.from_user.id
     user_input = message.text.strip()
 
-    # Check if user is in the process
-    if user_id not in user_data or "episode" not in user_data[user_id] or "in_progress" in user_data[user_id]:
-        return  # Ignore irrelevant inputs
+    if user_id not in user_data or "episode" not in user_data[user_id]:
+        return  
 
-    # Check for URL input
-    if user_input.startswith("http://") or user_input.startswith("https://"):
-        # Get anime title, episode, and URL for button
-        anime_title = user_data[user_id]["anime_title"]
-        episode_number = user_data[user_id]["episode"]
-        anime_cover_url = "https://raw.githubusercontent.com/AbidAbdullah1425/DMVU/refs/heads/Alpha/assist/20250208_132017.jpg"
-        
-        button_url = user_input
-        button = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("• ᴅᴏᴡɴʟᴏᴀᴅ / ᴡᴀᴛᴄʜ •", url=button_url)]]
-        )
+    if not user_input.startswith("http://") and not user_input.startswith("https://"):
+        await message.reply("Invalid URL. Please provide a valid link (starting with http:// or https://).")
+        return
 
-        # Send the final post to the channels
-        post_text = (
-    f"**☗   {anime_title}**\n\n"
-    f"**⦿   Ratings: 9.8**\n"
-    f"**⦿   Status: Airing**\n"
-    f"**⦿   Episode: `{episode_number}`**\n"
-    f"**⦿   Quality: 720p**\n"
-    f"**⦿   Genres: `Action`, `Adventure`, `Harem`, `Romance`, `Cultivation`**\n\n"
-    f"**◆   Synopsis : In a land where no magic is present. A land where the strong make the rules and weak have to obey...** [Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n\n"
-)
+    # Store button URL
+    user_data[user_id]["button_url"] = user_input
 
+    # Show preview message with button
+    episode_number = user_data[user_id]["episode"]
+    anime_cover_url = "https://raw.githubusercontent.com/AbidAbdullah1425/DMVU/refs/heads/Alpha/assist/cover.jpg"
 
+    button = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("• ᴅᴏᴡɴʟᴏᴀᴅ / ᴡᴀᴛᴄʜ •", url=user_input)],
+         [InlineKeyboardButton("✅ Send to Channels", callback_data=f"send|{user_id}")]]
+    )
 
-        # Send the post to each channel
-        for channel in CHANNELS:
-            try:
-                await client.send_photo(
-                    chat_id=channel,
-                    photo=anime_cover_url,
-                    caption=post_text,
-                    reply_markup=button
-                )
-            except Exception as e:
-                logger.error("Failed to post to %s: %s", channel, e)
+    post_text = (
+        f"**☗ Doupo Cangqiong**\n\n"
+        f"**⦿ Ratings: 9.8**\n"
+        f"**⦿ Status: Airing**\n"
+        f"**⦿ Episode: `{episode_number}`**\n"
+        f"**⦿ Quality: 720p**\n"
+        f"**⦿ Genres: `Action`, `Adventure`, `Harem`, `Romance`, `Cultivation`**\n\n"
+        f"**◆ Synopsis: In a land where no magic is present. A land where the strong make the rules and weak have to obey...** [Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n\n"
+    )
 
-        logger.info("Post created and sent to channels!")
+    await message.reply_photo(
+        photo=anime_cover_url,
+        caption=post_text,
+        reply_markup=button
+    )
 
-        # Reset user data after completion
-        await reset_user_data(user_id)
+    logger.debug(f"Preview sent to {user_id}, waiting for confirmation")
 
-    else:
-        await message.reply("Invalid URL. Please provide a valid URL (starting with http:// or https://).")
+@Bot.on_callback_query(filters.regex(r"^send\|(\d+)$"))
+async def send_to_channels(client, callback_query):
+    user_id = int(callback_query.matches[0].group(1))
+
+    if user_id not in user_data or "episode" not in user_data[user_id] or "button_url" not in user_data[user_id]:
+        await callback_query.answer("Invalid request.", show_alert=True)
+        return
+
+    episode_number = user_data[user_id]["episode"]
+    anime_cover_url = "https://raw.githubusercontent.com/AbidAbdullah1425/DMVU/refs/heads/Alpha/assist/cover.jpg"
+    button_url = user_data[user_id]["button_url"]
+
+    button = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("• ᴅᴏᴡɴʟᴏᴀᴅ / ᴡᴀᴛᴄʜ •", url=button_url)]]
+    )
+
+    post_text = (
+        f"**☗ Doupo Cangqiong**\n\n"
+        f"**⦿ Ratings: 9.8**\n"
+        f"**⦿ Status: Airing**\n"
+        f"**⦿ Episode: `{episode_number}`**\n"
+        f"**⦿ Quality: 720p**\n"
+        f"**⦿ Genres: `Action`, `Adventure`, `Harem`, `Romance`, `Cultivation`**\n\n"
+        f"**◆ Synopsis: In a land where no magic is present. A land where the strong make the rules and weak have to obey...** [Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n\n"
+    )
+
+    for channel in CHANNELS:
+        try:
+            await client.send_photo(
+                chat_id=channel,
+                photo=anime_cover_url,
+                caption=post_text,
+                reply_markup=button
+            )
+            logger.info(f"Post sent to {channel}")
+        except Exception as e:
+            logger.error(f"Failed to post to {channel}: {e}")
+
+    await callback_query.answer("Post sent to channels!", show_alert=True)
+    await reset_user_data(user_id)
