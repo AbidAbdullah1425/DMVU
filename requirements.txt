@@ -1,10 +1,8 @@
 python-dotenv
-pymongo
 requests
 aiohttp
 pyrogram
 TgCrypto
-yt-dlp
 
 
 
