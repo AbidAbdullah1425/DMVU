@@ -7,7 +7,7 @@ from bot import Bot
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-CHANNELS = ["@HeavenlySubs]
+CHANNELS = ["@HeavenlySubs"]
 
 # Temporary storage for user input
 user_data = {}
