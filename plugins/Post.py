@@ -9,6 +9,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 CHANNELS = ["@HeavenlySubs"]
+STICKER = "CAACAgUAAxkBAAIJZGfLOdpxPmkKJ_nlJICh0bmi7GF1AALLFwACWARYVg4ubUgM9uuVNgQ"  # replace with your sticker file ID
 
 # Temporary storage for user input
 user_data = {}
@@ -68,7 +69,7 @@ async def url_handler(client, message: Message):
         f"**⦿   Episode: {episode_number}**\n"
         f"**⦿   Quality: 720p**\n"
         f"**⦿   Genres: `Action`, `Adventure`, `Harem`, `Romance`, `Cultivation`**\n\n"
-        f"**◆   Synopsis: In a land where no magic is present. A land where the strong make the rules and weak have to obey...**[Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n\n"
+        f"**◆   Synopsis: In a land where no magic is present. A land where the strong make the rules and weak have to obey...**[**Read More**](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n[...]
     )
 
     await message.reply_photo(
@@ -103,7 +104,7 @@ async def send_to_channels(client, callback_query):
         f"**⦿   Episode: {episode_number}**\n"
         f"**⦿   Quality: 720p**\n"
         f"**⦿   Genres: `Action`, `Adventure`, `Harem`, `Romance`, `Cultivation`**\n\n"
-        f"**◆   Synopsis: In a land where no magic is present. A land where the strong make the rules and weak have to obey...**[Read More](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n\n"
+        f"**◆   Synopsis: In a land where no magic is present. A land where the strong make the rules and weak have to obey...**[**Read More**](https://myanimelist.net/anime/36491/Doupo_Cangqiong)\n[...]
     )
 
     for channel in CHANNELS:
@@ -120,4 +121,13 @@ async def send_to_channels(client, callback_query):
             logger.error(f"Failed to post to {channel}: {e}")
 
     await callback_query.answer("Post sent to channels!", show_alert=True)
+    
+    # Send a sticker to the channels
+    for channel in CHANNELS:
+        try:
+            await client.send_sticker(chat_id=channel, sticker=STICKER)
+            logger.info(f"Sticker sent to {channel}")
+        except Exception as e:
+            logger.error(f"Failed to send sticker to {channel}: {e}")
+    
     await reset_user_data(user_id)
